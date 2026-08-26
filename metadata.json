@@ -1,0 +1,6 @@
+{
+  "name": "Kofi",
+  "description": "Multi-currency digital wallet and fintech platform integrating Mobile Money, Fiat, Crypto, B2B payments, and double-entry ledger.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
