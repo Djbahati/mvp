@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Navbar } from './components/Navbar';
 import { WalletOverview } from './components/WalletOverview';
 import { MobileMoneyGateway } from './components/MobileMoneyGateway';
@@ -61,6 +61,28 @@ const INITIAL_USER_PROFILE: UserProfile = {
 };
 
 export default function App() {
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    const saved = localStorage.getItem('kofi_theme');
+    return saved === 'light' ? 'light' : 'dark';
+  });
+
+  useEffect(() => {
+    if (theme === 'light') {
+      document.documentElement.classList.add('light');
+      document.documentElement.classList.remove('dark');
+      document.documentElement.setAttribute('data-theme', 'light');
+    } else {
+      document.documentElement.classList.add('dark');
+      document.documentElement.classList.remove('light');
+      document.documentElement.setAttribute('data-theme', 'dark');
+    }
+    localStorage.setItem('kofi_theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
+  };
+
   const [activeTab, setActiveTab] = useState<string>('wallets');
   const [services] = useState(INITIAL_SERVICES);
   const [assets] = useState(INITIAL_ASSETS);
@@ -967,6 +989,8 @@ export default function App() {
         services={services}
         merkleRoot={latestMerkleHash}
         userProfile={userProfile}
+        theme={theme}
+        onToggleTheme={toggleTheme}
         onOpenUssdModal={() => setIsUssdModalOpen(true)}
         onOpenCodeInspector={() => setIsCodeInspectorOpen(true)}
         onDownloadZip={handleDownloadZip}

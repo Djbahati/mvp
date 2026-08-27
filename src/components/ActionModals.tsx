@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   X,
   Send,
@@ -11,8 +11,13 @@ import {
   Wallet,
   ShieldCheck,
   RefreshCw,
-  Coins
+  Coins,
+  Download,
+  Share2,
+  DollarSign,
+  Info
 } from 'lucide-react';
+import { QRCodeSVG, QRCodeCanvas } from 'qrcode.react';
 import { Asset, WalletAccount, ExternalWallet } from '../types';
 
 interface ActionModalsProps {
@@ -41,11 +46,74 @@ export const ActionModals: React.FC<ActionModalsProps> = ({
   const [amount, setAmount] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [copied, setCopied] = useState<boolean>(false);
+  const [copiedUri, setCopiedUri] = useState<boolean>(false);
+
+  // Receive modal custom amount & note state
+  const [receiveAmount, setReceiveAmount] = useState<string>('');
+  const [receiveNote, setReceiveNote] = useState<string>('');
+  const [showAmountInput, setShowAmountInput] = useState<boolean>(false);
+  const qrCanvasRef = useRef<HTMLDivElement>(null);
 
   if (!modalType) return null;
 
   const currentAsset = assets.find((a) => a.symbol === selectedSymbol) || assets[0];
   const currentWallet = wallets.find((w) => w.symbol === selectedSymbol);
+  const rawAddress = currentWallet?.address || '0780455033';
+
+  // Construct standard URI for payment scanning
+  const generatePaymentURI = () => {
+    const amtNum = parseFloat(receiveAmount);
+    const hasAmt = !isNaN(amtNum) && amtNum > 0;
+
+    if (selectedSymbol === 'RWF') {
+      // Mobile Money USSD / Payment format
+      const params = new URLSearchParams();
+      if (hasAmt) params.set('amount', amtNum.toString());
+      if (receiveNote) params.set('note', receiveNote);
+      const queryStr = params.toString() ? `?${params.toString()}` : '';
+      return `tel:*182*1*1*${rawAddress}#` + (hasAmt ? ` (${amtNum} RWF)` : '');
+    }
+
+    if (selectedSymbol === 'BTC') {
+      const params = new URLSearchParams();
+      if (hasAmt) params.set('amount', amtNum.toString());
+      if (receiveNote) params.set('message', receiveNote);
+      const queryStr = params.toString() ? `?${params.toString()}` : '';
+      return `bitcoin:${rawAddress}${queryStr}`;
+    }
+
+    if (selectedSymbol === 'USDT' || selectedSymbol === 'USDC' || selectedSymbol === 'ETH') {
+      const params = new URLSearchParams();
+      if (hasAmt) params.set('value', amtNum.toString());
+      if (receiveNote) params.set('message', receiveNote);
+      const queryStr = params.toString() ? `?${params.toString()}` : '';
+      return `ethereum:${rawAddress}${queryStr}`;
+    }
+
+    // Default raw address or URI
+    const params = new URLSearchParams();
+    if (hasAmt) params.set('amount', amtNum.toString());
+    if (receiveNote) params.set('memo', receiveNote);
+    const queryStr = params.toString() ? `?${params.toString()}` : '';
+    return `${selectedSymbol.toLowerCase()}:${rawAddress}${queryStr}`;
+  };
+
+  const paymentURI = generatePaymentURI();
+  const qrPayload = receiveAmount ? paymentURI : rawAddress;
+
+  const handleDownloadQR = () => {
+    if (!qrCanvasRef.current) return;
+    const canvas = qrCanvasRef.current.querySelector('canvas');
+    if (!canvas) return;
+
+    const imageUri = canvas.toDataURL('image/png');
+    const downloadLink = document.createElement('a');
+    downloadLink.download = `kofi-${selectedSymbol}-qr-${Date.now()}.png`;
+    downloadLink.href = imageUri;
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    document.body.removeChild(downloadLink);
+  };
 
   const handleSendSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -186,55 +254,170 @@ export const ActionModals: React.FC<ActionModalsProps> = ({
 
         {/* 2. RECEIVE / QR MODAL */}
         {modalType === 'RECEIVE' && (
-          <div className="text-center">
-            <div className="flex items-center justify-center gap-2 mb-3">
+          <div className="text-center space-y-4">
+            <div className="flex items-center justify-center gap-2">
               <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400">
                 <QrCode className="w-5 h-5" />
               </div>
-              <h3 className="text-lg font-bold text-white">Receive Funds</h3>
+              <div>
+                <h3 className="text-lg font-bold text-white">Receive & Deposit Funds</h3>
+                <p className="text-xs text-slate-400">Scan QR or copy address to transfer to your vault</p>
+              </div>
             </div>
 
-            <div className="mb-4">
+            {/* Asset Selector */}
+            <div className="flex items-center justify-between gap-2 bg-slate-950 p-2 rounded-2xl border border-slate-800">
+              <div className="text-xs font-semibold text-slate-400 pl-2 text-left">Asset / Currency</div>
               <select
                 value={selectedSymbol}
-                onChange={(e) => setSelectedSymbol(e.target.value)}
-                className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-bold text-xs focus:outline-none cursor-pointer"
+                onChange={(e) => {
+                  setSelectedSymbol(e.target.value);
+                  setReceiveAmount('');
+                  setReceiveNote('');
+                }}
+                className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-white font-bold text-xs focus:outline-none cursor-pointer"
               >
                 {assets.map((a) => (
                   <option key={a.symbol} value={a.symbol}>
-                    {a.icon} {a.symbol} ({a.name})
+                    {a.icon} {a.symbol} - {a.name}
                   </option>
                 ))}
               </select>
             </div>
 
-            {/* High-Contrast QR Code Representation */}
-            <div className="bg-white p-5 rounded-2xl inline-block shadow-xl mb-4">
-              <div className="w-44 h-44 bg-slate-950 rounded-xl p-3 flex flex-col items-center justify-center gap-2 text-white font-mono text-[10px] text-center">
-                <div className="text-amber-400 font-black text-xs">KOFI QR PAY</div>
-                <div className="w-24 h-24 border-4 border-amber-400 border-dashed rounded-lg flex items-center justify-center text-xs">
-                  [QR-MATRIX]
-                </div>
-                <div className="truncate max-w-[150px] text-[9px] text-slate-400">
-                  {currentWallet?.address || '0780455033'}
+            {/* Network Badge */}
+            <div className="flex items-center justify-center gap-2">
+              <span className="text-[11px] text-slate-400">Supported Network:</span>
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                {currentWallet?.network || 'Omni-Settlement'}
+              </span>
+            </div>
+
+            {/* High-Contrast Interactive QR Code Container */}
+            <div className="bg-white p-4 rounded-3xl inline-block shadow-2xl border-4 border-amber-500/30">
+              <div className="flex flex-col items-center justify-center p-2 bg-white rounded-2xl">
+                {/* SVG Render for ultra-sharp on-screen display */}
+                <QRCodeSVG
+                  value={qrPayload}
+                  size={190}
+                  level="H"
+                  includeMargin={true}
+                  bgColor="#ffffff"
+                  fgColor="#0f172a"
+                />
+
+                <div className="mt-2 text-center">
+                  <div className="text-[11px] font-extrabold text-slate-900 tracking-wider">
+                    KOFI PAY • {selectedSymbol}
+                  </div>
+                  {receiveAmount && (
+                    <div className="text-xs font-black text-amber-600 font-mono">
+                      Request: {parseFloat(receiveAmount).toLocaleString()} {selectedSymbol}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
 
-            <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-xs font-mono text-left mb-4">
-              <div className="text-slate-400 text-[10px] uppercase font-semibold mb-1">
-                Your {selectedSymbol} Deposit Address ({currentWallet?.network})
-              </div>
-              <div className="text-amber-400 break-all">{currentWallet?.address || '0780455033'}</div>
+            {/* Hidden Canvas used for high-res PNG file generation */}
+            <div ref={qrCanvasRef} className="hidden" aria-hidden="true">
+              <QRCodeCanvas
+                value={qrPayload}
+                size={512}
+                level="H"
+                includeMargin={true}
+                bgColor="#ffffff"
+                fgColor="#0f172a"
+              />
             </div>
 
-            <button
-              onClick={() => handleCopy(currentWallet?.address || '0780455033')}
-              className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl border border-slate-700 transition-colors flex items-center justify-center gap-2 cursor-pointer"
-            >
-              {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-              <span>{copied ? 'Address Copied to Clipboard!' : 'Copy Deposit Address'}</span>
-            </button>
+            {/* Optional Amount Specification Toggle */}
+            <div className="bg-slate-950 rounded-2xl p-3 border border-slate-800 text-left space-y-2.5">
+              <div className="flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => setShowAmountInput(!showAmountInput)}
+                  className="text-xs font-semibold text-amber-400 hover:text-amber-300 flex items-center gap-1.5 cursor-pointer"
+                >
+                  <DollarSign className="w-3.5 h-3.5" />
+                  <span>{showAmountInput ? 'Hide Amount Specification' : '+ Add Specific Amount to QR Code'}</span>
+                </button>
+                {receiveAmount && (
+                  <span className="text-[10px] text-emerald-400 font-bold">Amount Encoded</span>
+                )}
+              </div>
+
+              {showAmountInput && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                  <div>
+                    <label className="block text-[10px] text-slate-400 font-semibold mb-1">
+                      Request Amount ({selectedSymbol})
+                    </label>
+                    <input
+                      type="number"
+                      value={receiveAmount}
+                      onChange={(e) => setReceiveAmount(e.target.value)}
+                      placeholder="0.00"
+                      step="any"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-white font-mono text-xs focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-400 font-semibold mb-1">
+                      Payment Memo / Reference
+                    </label>
+                    <input
+                      type="text"
+                      value={receiveNote}
+                      onChange={(e) => setReceiveNote(e.target.value)}
+                      placeholder="e.g. Invoice #1042"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-white text-xs focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Wallet Address Display */}
+            <div className="bg-slate-950 p-3.5 rounded-2xl border border-slate-800 text-xs font-mono text-left">
+              <div className="flex items-center justify-between text-slate-400 text-[10px] uppercase font-semibold mb-1">
+                <span>{selectedSymbol} Deposit Address</span>
+                <span className="text-amber-400">{currentWallet?.network}</span>
+              </div>
+              <div className="text-slate-100 font-bold break-all selection:bg-amber-500 selection:text-slate-950">
+                {rawAddress}
+              </div>
+            </div>
+
+            {/* Action Buttons: Copy Address, Copy URI, Download QR */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => handleCopy(rawAddress)}
+                className="py-2.5 px-3 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl border border-slate-700 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                <span>{copied ? 'Address Copied!' : 'Copy Address'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleDownloadQR}
+                className="py-2.5 px-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Download className="w-4 h-4" />
+                <span>Save QR Image (PNG)</span>
+              </button>
+            </div>
+
+            {/* Security note */}
+            <div className="flex items-start gap-2 p-2.5 bg-slate-950/60 rounded-xl border border-slate-800/80 text-[11px] text-slate-400 text-left">
+              <Info className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+              <span>
+                Send only <strong className="text-slate-200">{selectedSymbol}</strong> via{' '}
+                <strong className="text-slate-200">{currentWallet?.network || 'official channels'}</strong> to this address. Transfers are confirmed automatically in the Rust Double-Entry Ledger.
+              </span>
+            </div>
           </div>
         )}
 

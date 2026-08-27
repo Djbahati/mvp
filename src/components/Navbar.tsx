@@ -13,7 +13,9 @@ import {
   CheckCircle2,
   Layers,
   PhoneCall,
-  Zap
+  Zap,
+  Sun,
+  Moon
 } from 'lucide-react';
 import { SystemServiceStatus, UserProfile } from '../types';
 
@@ -23,6 +25,8 @@ interface NavbarProps {
   services: SystemServiceStatus[];
   merkleRoot: string;
   userProfile: UserProfile;
+  theme: 'dark' | 'light';
+  onToggleTheme: () => void;
   onOpenUssdModal: () => void;
   onOpenCodeInspector: () => void;
   onDownloadZip: () => void;
@@ -35,6 +39,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   services,
   merkleRoot,
   userProfile,
+  theme,
+  onToggleTheme,
   onOpenUssdModal,
   onOpenCodeInspector,
   onDownloadZip,
@@ -129,6 +135,34 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Theme Toggle Button (Dark Mode / High-Contrast Light Mode) */}
+          <button
+            id="theme-toggle-button"
+            type="button"
+            role="switch"
+            aria-checked={theme === 'light'}
+            aria-label={theme === 'light' ? 'Switch to Default Dark Mode' : 'Switch to High-Contrast Light Mode for Accessibility'}
+            onClick={onToggleTheme}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all cursor-pointer select-none focus:outline-none focus:ring-2 focus:ring-amber-500 ${
+              theme === 'light'
+                ? 'bg-amber-100 text-amber-950 border-amber-300 hover:bg-amber-200 shadow-sm'
+                : 'bg-slate-800 text-slate-200 border-slate-700 hover:bg-slate-700 hover:text-white'
+            }`}
+            title={theme === 'light' ? 'High-Contrast Light Mode Active. Click to switch to Dark Mode' : 'Dark Mode Active. Click to switch to High-Contrast Light Mode'}
+          >
+            {theme === 'light' ? (
+              <>
+                <Sun className="w-4 h-4 text-amber-600" />
+                <span className="font-bold">Light (A11y)</span>
+              </>
+            ) : (
+              <>
+                <Moon className="w-4 h-4 text-amber-400" />
+                <span>Dark Mode</span>
+              </>
+            )}
+          </button>
+
           <button
             onClick={onOpenUssdModal}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-950 bg-gradient-to-r from-emerald-400 to-emerald-500 hover:from-emerald-300 hover:to-emerald-400 rounded-lg shadow-md shadow-emerald-500/15 transition-all cursor-pointer"

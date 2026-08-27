@@ -161,7 +161,7 @@ export const WalletOverview: React.FC<WalletOverviewProps> = ({
               return (
                 <div
                   key={w.account_id}
-                  className="bg-slate-950/70 border border-slate-800 hover:border-slate-700 p-3.5 rounded-xl flex items-center justify-between transition-colors"
+                  className="bg-slate-950/70 border border-slate-800 hover:border-slate-700 p-3.5 rounded-xl flex items-center justify-between transition-colors group"
                 >
                   <div className="flex items-center gap-3">
                     <span className="text-2xl">{asset?.icon}</span>
@@ -175,15 +175,24 @@ export const WalletOverview: React.FC<WalletOverviewProps> = ({
                       </p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className="font-bold text-white text-sm">
-                      {w.symbol === 'RWF'
-                        ? w.balance.toLocaleString()
-                        : w.balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <div className="font-bold text-white text-sm">
+                        {w.symbol === 'RWF'
+                          ? w.balance.toLocaleString()
+                          : w.balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      </div>
+                      <div className="text-[11px] text-slate-400">
+                        ≈ ${valUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
                     </div>
-                    <div className="text-[11px] text-slate-400">
-                      ≈ ${valUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </div>
+                    <button
+                      onClick={() => onOpenReceive(w.symbol)}
+                      title={`Show ${w.symbol} QR Code & Deposit Address`}
+                      className="p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-amber-400 hover:border-amber-500/40 transition-colors cursor-pointer"
+                    >
+                      <QrCode className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
               );
@@ -210,7 +219,7 @@ export const WalletOverview: React.FC<WalletOverviewProps> = ({
               return (
                 <div
                   key={w.account_id}
-                  className="bg-slate-950/70 border border-slate-800 hover:border-slate-700 p-3.5 rounded-xl flex items-center justify-between transition-colors"
+                  className="bg-slate-950/70 border border-slate-800 hover:border-slate-700 p-3.5 rounded-xl flex items-center justify-between transition-colors group"
                 >
                   <div className="flex items-center gap-3">
                     <span className="text-2xl">{asset?.icon}</span>
@@ -226,13 +235,22 @@ export const WalletOverview: React.FC<WalletOverviewProps> = ({
                       </p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className="font-bold text-white text-sm">
-                      {w.balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <div className="font-bold text-white text-sm">
+                        {w.balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
+                      <div className="text-[11px] text-slate-400">
+                        ≈ ${valUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
                     </div>
-                    <div className="text-[11px] text-slate-400">
-                      ≈ ${valUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </div>
+                    <button
+                      onClick={() => onOpenReceive(w.symbol)}
+                      title={`Show ${w.symbol} QR Code & Deposit Address`}
+                      className="p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-amber-400 hover:border-amber-500/40 transition-colors cursor-pointer"
+                    >
+                      <QrCode className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
               );
@@ -259,7 +277,7 @@ export const WalletOverview: React.FC<WalletOverviewProps> = ({
               return (
                 <div
                   key={w.account_id}
-                  className="bg-slate-950/70 border border-slate-800 hover:border-slate-700 p-3.5 rounded-xl flex items-center justify-between transition-colors"
+                  className="bg-slate-950/70 border border-slate-800 hover:border-slate-700 p-3.5 rounded-xl flex items-center justify-between transition-colors group"
                 >
                   <div className="flex items-center gap-3">
                     <span className="text-2xl">{asset?.icon}</span>
@@ -275,13 +293,22 @@ export const WalletOverview: React.FC<WalletOverviewProps> = ({
                       </p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className="font-bold text-white text-sm font-mono">
-                      {w.balance.toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 6 })}
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <div className="font-bold text-white text-sm font-mono">
+                        {w.balance.toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 6 })}
+                      </div>
+                      <div className="text-[11px] text-slate-400">
+                        ≈ ${valUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
                     </div>
-                    <div className="text-[11px] text-slate-400">
-                      ≈ ${valUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </div>
+                    <button
+                      onClick={() => onOpenReceive(w.symbol)}
+                      title={`Show ${w.symbol} QR Code & Deposit Address`}
+                      className="p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-amber-400 hover:border-amber-500/40 transition-colors cursor-pointer"
+                    >
+                      <QrCode className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
               );
