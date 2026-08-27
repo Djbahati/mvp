@@ -7,8 +7,6 @@ import { ExchangeEngine } from './components/ExchangeEngine';
 import { B2BPortal } from './components/B2BPortal';
 import { MiningHub } from './components/MiningHub';
 import { ComplianceKYC } from './components/ComplianceKYC';
-import { ApiConsole } from './components/ApiConsole';
-import { CodeInspectorModal } from './components/CodeInspectorModal';
 import { ActionModals } from './components/ActionModals';
 import { UssdSimulatorModal } from './components/UssdSimulatorModal';
 import { BiometricAuthModal } from './components/BiometricAuthModal';
@@ -43,7 +41,6 @@ import {
   MultiSigSignature
 } from './types';
 import { recordDoubleEntry } from './services/ledgerEngine';
-import { generateProjectZip, downloadBlob } from './services/exportService';
 
 const INITIAL_USER_PROFILE: UserProfile = {
   user_id: 'usr_kofi_882',
@@ -98,9 +95,7 @@ export default function App() {
   const [userProfile, setUserProfile] = useState<UserProfile>(INITIAL_USER_PROFILE);
 
   // Modals & Action Sheet State
-  const [isCodeInspectorOpen, setIsCodeInspectorOpen] = useState(false);
   const [isUssdModalOpen, setIsUssdModalOpen] = useState(false);
-  const [isDownloadingZip, setIsDownloadingZip] = useState(false);
   const [modalType, setModalType] = useState<'SEND' | 'RECEIVE' | 'DEPOSIT' | 'WITHDRAW' | 'CONNECT_WALLET' | null>(null);
   const [selectedAssetSymbol, setSelectedAssetSymbol] = useState<string>('USDT');
   const [highRiskBiometricRequest, setHighRiskBiometricRequest] = useState<HighRiskActionRequest | null>(null);
@@ -137,19 +132,6 @@ export default function App() {
   const latestMerkleHash = ledgerEntries.length > 0
     ? ledgerEntries[ledgerEntries.length - 1].hash
     : 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
-
-  // Handle Full Project ZIP Download
-  const handleDownloadZip = async () => {
-    setIsDownloadingZip(true);
-    try {
-      const zipBlob = await generateProjectZip();
-      downloadBlob(zipBlob, 'kofi-polyglot-platform.zip');
-    } catch (err) {
-      console.error('Error generating ZIP:', err);
-    } finally {
-      setIsDownloadingZip(false);
-    }
-  };
 
   // 0. USSD *951# Registration & Connection Flow
   const handleRegisterAndLink = (
@@ -992,9 +974,6 @@ export default function App() {
         theme={theme}
         onToggleTheme={toggleTheme}
         onOpenUssdModal={() => setIsUssdModalOpen(true)}
-        onOpenCodeInspector={() => setIsCodeInspectorOpen(true)}
-        onDownloadZip={handleDownloadZip}
-        isDownloading={isDownloadingZip}
       />
 
       {/* Main Content Area */}
@@ -1086,8 +1065,6 @@ export default function App() {
             }
           />
         )}
-
-        {activeTab === 'api' && <ApiConsole />}
       </main>
 
       {/* High-Risk Action WebAuthn Biometric Modal */}
@@ -1131,21 +1108,15 @@ export default function App() {
         merkleRoot={latestMerkleHash}
       />
 
-      {/* Full Codebase Inspector Modal */}
-      <CodeInspectorModal
-        isOpen={isCodeInspectorOpen}
-        onClose={() => setIsCodeInspectorOpen(false)}
-      />
-
       {/* Footer */}
       <footer className="bg-slate-950 border-t border-slate-900 py-4 text-center text-xs text-slate-400">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2 font-mono text-[11px]">
-          <div>
-            Project Kofi • Polyglot Fintech Kernel (Rust Port 5001 • Go Port 5002 • C# Port 5003 • Java Port 8080 • USSD *951#)
+        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs">
+          <div className="text-slate-400">
+            KOFI Financial Platform • USSD *951# • High-Volume Instant Settlement • Multi-Currency Ledger
           </div>
-          <div className="flex items-center gap-4 text-slate-400">
-            <span>PostgreSQL: Fixed Precision Numeric(38,18)</span>
-            <span>BIP-44 HD Derivation</span>
+          <div className="flex items-center gap-4 text-slate-400 font-mono text-[11px]">
+            <span>Bank-Grade Encryption</span>
+            <span>Biometric Multi-Sig</span>
           </div>
         </div>
       </footer>

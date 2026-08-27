@@ -7,13 +7,6 @@ import {
   Building2,
   Cpu,
   ShieldCheck,
-  Terminal,
-  Download,
-  Code2,
-  CheckCircle2,
-  Layers,
-  PhoneCall,
-  Zap,
   Sun,
   Moon
 } from 'lucide-react';
@@ -28,9 +21,6 @@ interface NavbarProps {
   theme: 'dark' | 'light';
   onToggleTheme: () => void;
   onOpenUssdModal: () => void;
-  onOpenCodeInspector: () => void;
-  onDownloadZip: () => void;
-  isDownloading: boolean;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -41,10 +31,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   userProfile,
   theme,
   onToggleTheme,
-  onOpenUssdModal,
-  onOpenCodeInspector,
-  onDownloadZip,
-  isDownloading
+  onOpenUssdModal
 }) => {
   const tabs = [
     { id: 'wallets', label: 'Wallets & Portfolio', icon: Wallet },
@@ -53,8 +40,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'exchange', label: 'FX & Swap', icon: ArrowLeftRight },
     { id: 'b2b', label: 'B2B & Merchants', icon: Building2 },
     { id: 'mining', label: 'Mining Telemetry', icon: Cpu },
-    { id: 'compliance', label: 'KYC / AML Compliance', icon: ShieldCheck },
-    { id: 'api', label: 'API Sandbox', icon: Terminal }
+    { id: 'compliance', label: 'KYC / AML Compliance', icon: ShieldCheck }
   ];
 
   return (
@@ -117,25 +103,6 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             <Smartphone className="w-4 h-4" />
             <span>Launch *951# Phone</span>
-          </button>
-
-          <button
-            onClick={onOpenCodeInspector}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-200 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg transition-colors"
-            title="Inspect full Rust, Go, C#, Java & SQL source code"
-          >
-            <Code2 className="w-4 h-4 text-amber-400" />
-            <span>Inspect Stack</span>
-          </button>
-
-          <button
-            onClick={onDownloadZip}
-            disabled={isDownloading}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-slate-950 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 rounded-lg shadow-md shadow-amber-500/10 transition-all cursor-pointer disabled:opacity-50"
-            title="Download full project repository as .ZIP"
-          >
-            <Download className="w-4 h-4" />
-            <span>{isDownloading ? 'Bundling ZIP...' : 'Download (.ZIP)'}</span>
           </button>
         </div>
       </div>
