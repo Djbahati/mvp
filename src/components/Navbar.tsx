@@ -59,59 +59,6 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <header className="bg-slate-900 border-b border-slate-800 sticky top-0 z-40">
-      {/* Top microservice status bar */}
-      <div className="bg-slate-950/80 px-4 py-1.5 border-b border-slate-800/60 text-xs flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-3 flex-wrap">
-          <span className="text-slate-400 font-medium flex items-center gap-1.5">
-            <Layers className="w-3.5 h-3.5 text-amber-500" />
-            Polyglot Mesh:
-          </span>
-          {services.map((svc) => (
-            <div
-              key={svc.name}
-              className="flex items-center gap-1.5 bg-slate-900/90 border border-slate-800 px-2 py-0.5 rounded text-[11px]"
-              title={`${svc.role} (Port ${svc.port})`}
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="font-semibold text-slate-200">{svc.name}</span>
-              <span className="text-slate-400">({svc.language})</span>
-              <span className="text-emerald-400 font-mono">{svc.latency_ms}ms</span>
-            </div>
-          ))}
-        </div>
-
-        <div className="flex items-center gap-3 text-[11px]">
-          {/* USSD *951# Live Connection Status */}
-          <button
-            onClick={onOpenUssdModal}
-            className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded border transition-all cursor-pointer font-mono ${
-              userProfile.is_phone_linked
-                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20'
-                : 'bg-amber-500/10 border-amber-500/40 text-amber-300 hover:bg-amber-500/20 animate-pulse'
-            }`}
-          >
-            <PhoneCall className="w-3.5 h-3.5" />
-            <span className="font-bold">*951# USSD:</span>
-            <span>
-              {userProfile.is_phone_linked
-                ? `Linked (+250 ${userProfile.phone_number})`
-                : 'Connect Phone'}
-            </span>
-          </button>
-
-          <div className="flex items-center gap-1.5 bg-slate-900 px-2.5 py-0.5 rounded border border-slate-800 font-mono text-slate-300">
-            <span className="text-amber-400 font-semibold">Merkle Root:</span>
-            <span className="text-slate-400 truncate max-w-[120px]" title={merkleRoot}>
-              {merkleRoot.substring(0, 10)}...{merkleRoot.substring(merkleRoot.length - 6)}
-            </span>
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 inline" />
-          </div>
-          <span className="text-slate-400 hidden lg:inline">
-            HSM / MPC Enclave: <span className="text-emerald-400 font-medium">Active</span>
-          </span>
-        </div>
-      </div>
-
       {/* Main header row */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
