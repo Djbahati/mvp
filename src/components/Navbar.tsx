@@ -8,9 +8,12 @@ import {
   Cpu,
   ShieldCheck,
   Sun,
-  Moon
+  Moon,
+  LogOut,
+  User as UserIcon
 } from 'lucide-react';
 import { SystemServiceStatus, UserProfile } from '../types';
+import { useAuth } from '../context/AuthContext';
 
 interface NavbarProps {
   activeTab: string;
@@ -33,6 +36,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onToggleTheme,
   onOpenUssdModal
 }) => {
+  const { currentUser, logout } = useAuth();
+
   const tabs = [
     { id: 'wallets', label: 'Wallets & Portfolio', icon: Wallet },
     { id: 'momo', label: 'Mobile Money (*951#)', icon: Smartphone },
@@ -68,6 +73,15 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Current User Badge & Logout */}
+          {currentUser && (
+            <div className="hidden md:flex items-center gap-2 bg-slate-950/60 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-300">
+              <UserIcon className="w-3.5 h-3.5 text-amber-400" />
+              <span className="font-semibold text-white">{currentUser.first_name}</span>
+              <span className="text-[10px] bg-amber-500/10 text-amber-400 px-1.5 py-0.2 rounded font-mono">{currentUser.role}</span>
+            </div>
+          )}
+
           {/* Theme Toggle Button (Dark Mode / High-Contrast Light Mode) */}
           <button
             id="theme-toggle-button"
@@ -104,6 +118,15 @@ export const Navbar: React.FC<NavbarProps> = ({
             <Smartphone className="w-4 h-4" />
             <span>Launch *951# Phone</span>
           </button>
+
+          <button
+            onClick={() => logout()}
+            className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 rounded-lg transition-all cursor-pointer"
+            title="Log out of Kofi"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Logout</span>
+          </button>
         </div>
       </div>
 
@@ -133,3 +156,4 @@ export const Navbar: React.FC<NavbarProps> = ({
     </header>
   );
 };
+

@@ -484,6 +484,438 @@ async function startServer() {
     }
   });
 
+  // Hashing helpers
+  const hashPassword = (password: string): string => {
+    const salt = crypto.randomBytes(16).toString("hex");
+    const hash = crypto.pbkdf2Sync(password, salt, 10000, 64, "sha512").toString("hex");
+    return `${salt}:${hash}`;
+  };
+
+  const verifyPassword = (password: string, storedHash: string): boolean => {
+    try {
+      const [salt, originalHash] = storedHash.split(":");
+      if (!salt || !originalHash) return false;
+      const hash = crypto.pbkdf2Sync(password, salt, 10000, 64, "sha512").toString("hex");
+      return crypto.timingSafeEqual(Buffer.from(hash, "hex"), Buffer.from(originalHash, "hex"));
+    } catch (e) {
+      return false;
+    }
+  };
+
+  // --- KOFI AUTHENTICATION SYSTEM ---
+  const usersStore: any[] = [
+    {
+      id: "usr_admin_1",
+      first_name: "System",
+      last_name: "Administrator",
+      username: "admin",
+      email: "admin@kofi.app",
+      phone_number: "+250780000001",
+      country: "Rwanda",
+      password_hash: hashPassword("Admin123!"),
+      email_verified: true,
+      phone_verified: true,
+      account_status: "ACTIVE",
+      role: "ADMIN",
+      profile_image: "",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      last_login: new Date().toISOString()
+    },
+    {
+      id: "usr_demo_2",
+      first_name: "Kofi",
+      last_name: "Customer",
+      username: "koficustomer",
+      email: "user@kofi.app",
+      phone_number: "+250780000002",
+      country: "Kenya",
+      password_hash: hashPassword("User123!"),
+      email_verified: true,
+      phone_verified: true,
+      account_status: "ACTIVE",
+      role: "USER",
+      profile_image: "",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      last_login: new Date().toISOString()
+    }
+  ];
+
+  const sessionsStore: Map<string, { user_id: string; token: string; expires_at: number }> = new Map();
+  const refreshTokensStore: Map<string, { user_id: string; token: string; expires_at: number }> = new Map();
+  const emailVerificationsStore: Map<string, { user_id: string; code: string; expires_at: number }> = new Map();
+  const phoneVerificationsStore: Map<string, { user_id: string; code: string; expires_at: number }> = new Map();
+  const passwordResetsStore: Map<string, { user_id: string; token: string; expires_at: number; used: boolean }> = new Map();
+  const loginAttemptsStore: Map<string, { attempts: number; lockout_until: number }> = new Map();
+
+  const sanitizeUser = (u: any) => {
+    const { password_hash, ...rest } = u;
+    return rest;
+  };
+
+  app.post("/api/auth/signup", async (req, res) => {
+    try {
+      const { first_name, last_name, username, email, phone_number, country, password, terms_accepted, privacy_accepted } = req.body;
+      
+      if (!first_name || !last_name || !username || !email || !phone_number || !country || !password) {
+        return res.status(400).json({ success: false, message: "All required fields must be provided", code: "MISSING_FIELDS" });
+      }
+
+      if (!terms_accepted || !privacy_accepted) {
+        return res.status(400).json({ success: false, message: "You must accept the Terms & Conditions and Privacy Policy", code: "TERMS_NOT_ACCEPTED" });
+      }
+
+      if (password.length < 8) {
+        return res.status(400).json({ success: false, message: "Password must contain at least 8 characters", code: "WEAK_PASSWORD" });
+      }
+
+      const existing = usersStore.find(
+        u => u.email.toLowerCase() === email.toLowerCase() ||
+             u.username.toLowerCase() === username.toLowerCase() ||
+             u.phone_number === phone_number
+      );
+
+      if (existing) {
+        if (existing.email.toLowerCase() === email.toLowerCase()) {
+          return res.status(400).json({ success: false, message: "Email is already registered", code: "EMAIL_EXISTS" });
+        }
+        if (existing.username.toLowerCase() === username.toLowerCase()) {
+          return res.status(400).json({ success: false, message: "Username is already taken", code: "USERNAME_EXISTS" });
+        }
+        if (existing.phone_number === phone_number) {
+          return res.status(400).json({ success: false, message: "Phone number is already registered", code: "PHONE_EXISTS" });
+        }
+      }
+
+      const userId = `usr_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+      const newUser = {
+        id: userId,
+        first_name,
+        last_name,
+        username,
+        email: email.toLowerCase(),
+        phone_number,
+        country,
+        password_hash: hashPassword(password),
+        email_verified: false,
+        phone_verified: false,
+        account_status: "PENDING_VERIFICATION",
+        role: "USER",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      usersStore.push(newUser);
+
+      const emailCode = Math.floor(100000 + Math.random() * 900000).toString();
+      const phoneCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+      emailVerificationsStore.set(userId, { user_id: userId, code: emailCode, expires_at: Date.now() + 15 * 60 * 1000 });
+      phoneVerificationsStore.set(userId, { user_id: userId, code: phoneCode, expires_at: Date.now() + 10 * 60 * 1000 });
+
+      const accessToken = crypto.randomBytes(32).toString("hex");
+      const refreshToken = crypto.randomBytes(32).toString("hex");
+      const expiresAt = Date.now() + 24 * 60 * 60 * 1000;
+
+      sessionsStore.set(accessToken, { user_id: userId, token: accessToken, expires_at: expiresAt });
+      refreshTokensStore.set(refreshToken, { user_id: userId, token: refreshToken, expires_at: Date.now() + 7 * 24 * 60 * 60 * 1000 });
+
+      res.status(201).json({
+        success: true,
+        message: "Account created successfully. Please verify your email and phone.",
+        data: {
+          user: sanitizeUser(newUser),
+          accessToken,
+          refreshToken,
+          debug_verification: { emailCode, phoneCode }
+        }
+      });
+    } catch (error: any) {
+      console.error("Signup error:", error);
+      res.status(500).json({ success: false, message: "Internal server error during registration", code: "SERVER_ERROR" });
+    }
+  });
+
+  app.post("/api/auth/login", async (req, res) => {
+    try {
+      const { identifier, password } = req.body;
+      if (!identifier || !password) {
+        return res.status(400).json({ success: false, message: "Identifier and password are required", code: "MISSING_FIELDS" });
+      }
+
+      const clientIp = req.ip || "unknown";
+      const attemptKey = `${clientIp}_${identifier}`;
+      const lockoutRecord = loginAttemptsStore.get(attemptKey);
+
+      if (lockoutRecord && lockoutRecord.lockout_until > Date.now()) {
+        const remainingSec = Math.ceil((lockoutRecord.lockout_until - Date.now()) / 1000);
+        return res.status(429).json({
+          success: false,
+          message: `Too many failed login attempts. Please try again in ${remainingSec} seconds.`,
+          code: "ACCOUNT_LOCKED"
+        });
+      }
+
+      const user = usersStore.find(
+        u => u.email.toLowerCase() === identifier.toLowerCase() ||
+             u.username.toLowerCase() === identifier.toLowerCase() ||
+             u.phone_number === identifier
+      );
+
+      if (!user || !verifyPassword(password, user.password_hash)) {
+        const currentAttempts = (lockoutRecord?.attempts || 0) + 1;
+        if (currentAttempts >= 5) {
+          loginAttemptsStore.set(attemptKey, { attempts: currentAttempts, lockout_until: Date.now() + 15 * 60 * 1000 });
+          return res.status(429).json({
+            success: false,
+            message: "Too many failed attempts. Account temporarily locked for 15 minutes.",
+            code: "ACCOUNT_LOCKED"
+          });
+        } else {
+          loginAttemptsStore.set(attemptKey, { attempts: currentAttempts, lockout_until: 0 });
+        }
+
+        return res.status(401).json({ success: false, message: "Invalid credentials", code: "INVALID_CREDENTIALS" });
+      }
+
+      if (user.account_status === "SUSPENDED" || user.account_status === "LOCKED") {
+        return res.status(403).json({ success: false, message: "Account is disabled or locked. Please contact support.", code: "ACCOUNT_DISABLED" });
+      }
+
+      loginAttemptsStore.delete(attemptKey);
+
+      user.last_login = new Date().toISOString();
+      user.account_status = "ACTIVE";
+
+      const accessToken = crypto.randomBytes(32).toString("hex");
+      const refreshToken = crypto.randomBytes(32).toString("hex");
+      const expiresAt = Date.now() + 24 * 60 * 60 * 1000;
+
+      sessionsStore.set(accessToken, { user_id: user.id, token: accessToken, expires_at: expiresAt });
+      refreshTokensStore.set(refreshToken, { user_id: user.id, token: refreshToken, expires_at: Date.now() + 7 * 24 * 60 * 60 * 1000 });
+
+      res.json({
+        success: true,
+        message: "Login successful",
+        data: {
+          user: sanitizeUser(user),
+          accessToken,
+          refreshToken
+        }
+      });
+    } catch (error: any) {
+      console.error("Login error:", error);
+      res.status(500).json({ success: false, message: "Internal server error during login", code: "SERVER_ERROR" });
+    }
+  });
+
+  app.get("/api/auth/me", async (req, res) => {
+    try {
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        return res.status(401).json({ success: false, message: "Unauthorized", code: "UNAUTHORIZED" });
+      }
+
+      const token = authHeader.split(" ")[1];
+      const session = sessionsStore.get(token);
+
+      if (!session || session.expires_at < Date.now()) {
+        return res.status(401).json({ success: false, message: "Session expired or invalid", code: "SESSION_EXPIRED" });
+      }
+
+      const user = usersStore.find(u => u.id === session.user_id);
+      if (!user) {
+        return res.status(404).json({ success: false, message: "User not found", code: "USER_NOT_FOUND" });
+      }
+
+      res.json({
+        success: true,
+        data: {
+          user: sanitizeUser(user)
+        }
+      });
+    } catch (error: any) {
+      console.error("Auth me error:", error);
+      res.status(500).json({ success: false, message: "Internal server error", code: "SERVER_ERROR" });
+    }
+  });
+
+  app.post("/api/auth/verify-email", async (req, res) => {
+    try {
+      const { user_id, code } = req.body;
+      const verification = emailVerificationsStore.get(user_id);
+
+      if (!verification || verification.expires_at < Date.now()) {
+        return res.status(400).json({ success: false, message: "Verification code has expired or is invalid", code: "INVALID_CODE" });
+      }
+
+      if (verification.code !== code) {
+        return res.status(400).json({ success: false, message: "Invalid verification code", code: "INVALID_CODE" });
+      }
+
+      const user = usersStore.find(u => u.id === user_id);
+      if (user) {
+        user.email_verified = true;
+        if (user.phone_verified) {
+          user.account_status = "ACTIVE";
+        }
+      }
+
+      emailVerificationsStore.delete(user_id);
+
+      res.json({
+        success: true,
+        message: "Email verified successfully",
+        data: { user: user ? sanitizeUser(user) : null }
+      });
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message, code: "SERVER_ERROR" });
+    }
+  });
+
+  app.post("/api/auth/verify-phone", async (req, res) => {
+    try {
+      const { user_id, code } = req.body;
+      const verification = phoneVerificationsStore.get(user_id);
+
+      if (!verification || verification.expires_at < Date.now()) {
+        return res.status(400).json({ success: false, message: "Phone OTP has expired or is invalid", code: "INVALID_CODE" });
+      }
+
+      if (verification.code !== code) {
+        return res.status(400).json({ success: false, message: "Invalid verification code", code: "INVALID_CODE" });
+      }
+
+      const user = usersStore.find(u => u.id === user_id);
+      if (user) {
+        user.phone_verified = true;
+        if (user.email_verified) {
+          user.account_status = "ACTIVE";
+        }
+      }
+
+      phoneVerificationsStore.delete(user_id);
+
+      res.json({
+        success: true,
+        message: "Phone number verified successfully",
+        data: { user: user ? sanitizeUser(user) : null }
+      });
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message, code: "SERVER_ERROR" });
+    }
+  });
+
+  app.post("/api/auth/resend-verification", async (req, res) => {
+    try {
+      const { user_id, type } = req.body;
+      const user = usersStore.find(u => u.id === user_id);
+      if (!user) {
+        return res.status(404).json({ success: false, message: "User not found", code: "USER_NOT_FOUND" });
+      }
+
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      if (type === 'email') {
+        emailVerificationsStore.set(user_id, { user_id, code, expires_at: Date.now() + 15 * 60 * 1000 });
+      } else {
+        phoneVerificationsStore.set(user_id, { user_id, code, expires_at: Date.now() + 10 * 60 * 1000 });
+      }
+
+      res.json({
+        success: true,
+        message: `New ${type} verification code sent successfully`,
+        debug_code: code
+      });
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message, code: "SERVER_ERROR" });
+    }
+  });
+
+  app.post("/api/auth/forgot-password", async (req, res) => {
+    try {
+      const { identifier } = req.body;
+      const user = usersStore.find(u => u.email.toLowerCase() === identifier?.toLowerCase() || u.phone_number === identifier);
+      
+      const resetToken = crypto.randomBytes(32).toString("hex");
+      if (user) {
+        passwordResetsStore.set(resetToken, { user_id: user.id, token: resetToken, expires_at: Date.now() + 30 * 60 * 1000, used: false });
+      }
+
+      res.json({
+        success: true,
+        message: "If an account exists with that email or phone, password reset instructions have been sent.",
+        debug_reset_token: user ? resetToken : undefined
+      });
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message, code: "SERVER_ERROR" });
+    }
+  });
+
+  app.post("/api/auth/reset-password", async (req, res) => {
+    try {
+      const { token, new_password } = req.body;
+      const resetRecord = passwordResetsStore.get(token);
+
+      if (!resetRecord || resetRecord.expires_at < Date.now() || resetRecord.used) {
+        return res.status(400).json({ success: false, message: "Password reset link/token is invalid or has expired", code: "INVALID_TOKEN" });
+      }
+
+      if (!new_password || new_password.length < 8) {
+        return res.status(400).json({ success: false, message: "New password must contain at least 8 characters", code: "WEAK_PASSWORD" });
+      }
+
+      const user = usersStore.find(u => u.id === resetRecord.user_id);
+      if (!user) {
+        return res.status(404).json({ success: false, message: "User not found", code: "USER_NOT_FOUND" });
+      }
+
+      user.password_hash = hashPassword(new_password);
+      user.updated_at = new Date().toISOString();
+      resetRecord.used = true;
+
+      res.json({
+        success: true,
+        message: "Password has been reset successfully. You can now log in with your new password."
+      });
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message, code: "SERVER_ERROR" });
+    }
+  });
+
+  app.post("/api/auth/logout", async (req, res) => {
+    try {
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith("Bearer ")) {
+        const token = authHeader.split(" ")[1];
+        sessionsStore.delete(token);
+      }
+      res.json({ success: true, message: "Logged out successfully" });
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message, code: "SERVER_ERROR" });
+    }
+  });
+
+  app.post("/api/auth/logout-all", async (req, res) => {
+    try {
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith("Bearer ")) {
+        const token = authHeader.split(" ")[1];
+        const session = sessionsStore.get(token);
+        if (session) {
+          for (const [sessToken, sessVal] of sessionsStore.entries()) {
+            if (sessVal.user_id === session.user_id) {
+              sessionsStore.delete(sessToken);
+            }
+          }
+        }
+      }
+      res.json({ success: true, message: "Logged out from all devices successfully" });
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message, code: "SERVER_ERROR" });
+    }
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

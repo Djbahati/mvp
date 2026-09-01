@@ -1,4 +1,14 @@
-import React from 'react';
+import React, { useState } from 'react';
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  Legend
+} from 'recharts';
 import {
   Wallet,
   ArrowUpRight,
@@ -15,12 +25,13 @@ import {
   Layers,
   ChevronRight
 } from 'lucide-react';
-import { Asset, WalletAccount, Transaction, ExternalWallet } from '../types';
+import { Asset, WalletAccount, Transaction, ExternalWallet, LedgerEntry } from '../types';
 
 interface WalletOverviewProps {
   wallets: WalletAccount[];
   assets: Asset[];
   transactions: Transaction[];
+  ledgerEntries: LedgerEntry[];
   externalWallets: ExternalWallet[];
   onOpenSend: (symbol?: string) => void;
   onOpenReceive: (symbol?: string) => void;
@@ -35,6 +46,7 @@ export const WalletOverview: React.FC<WalletOverviewProps> = ({
   wallets,
   assets,
   transactions,
+  ledgerEntries,
   externalWallets,
   onOpenSend,
   onOpenReceive,
@@ -44,6 +56,8 @@ export const WalletOverview: React.FC<WalletOverviewProps> = ({
   onOpenConnectWallet,
   onSelectTab
 }) => {
+  const [activeMetric, setActiveMetric] = useState<'ALL' | 'totalUsd' | 'BTC' | 'USDT'>('ALL');
+
   // Calculate total net worth in USD
   const totalUsd = wallets.reduce((acc, w) => {
     const asset = assets.find((a) => a.symbol === w.symbol);
@@ -68,6 +82,63 @@ export const WalletOverview: React.FC<WalletOverviewProps> = ({
     const asset = assets.find((a) => a.symbol === w.symbol);
     return asset?.type === 'CRYPTO';
   });
+
+  // 7-Day historical performance chart data derived from ledger entries
+  const chartData = React.useMemo(() => {
+    const days = 7;
+    const result = [];
+    const now = Date.now();
+    const dayMs = 86400000;
+
+    const currentBalances: Record<string, number> = {};
+    wallets.forEach(w => {
+      currentBalances[w.symbol] = w.balance;
+    });
+
+    const sortedEntries = [...ledgerEntries].sort(
+      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+
+    for (let i = days - 1; i >= 0; i--) {
+      const targetTime = now - i * dayMs;
+      const dateLabel = new Date(targetTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+      const snapshotBalances = { ...currentBalances };
+      
+      sortedEntries.forEach(entry => {
+        const entryTime = new Date(entry.created_at).getTime();
+        if (entryTime > targetTime) {
+          if (entry.credit_account_name.includes('Customer') || entry.credit_account_name.includes('Wallet') || entry.credit_account_name.includes('User')) {
+            snapshotBalances[entry.asset_symbol] = (snapshotBalances[entry.asset_symbol] || 0) - entry.amount;
+          }
+          if (entry.debit_account_name.includes('Customer') || entry.debit_account_name.includes('Wallet') || entry.debit_account_name.includes('User')) {
+            snapshotBalances[entry.asset_symbol] = (snapshotBalances[entry.asset_symbol] || 0) + entry.amount;
+          }
+        }
+      });
+
+      let totalUsdSnapshot = 0;
+      wallets.forEach(w => {
+        const asset = assets.find(a => a.symbol === w.symbol);
+        const price = asset ? asset.current_price_usd : 1;
+        const bal = Math.max(0, snapshotBalances[w.symbol] ?? w.balance);
+        totalUsdSnapshot += bal * price;
+      });
+
+      const btcPrice = assets.find(a => a.symbol === 'BTC')?.current_price_usd || 95000;
+      const btcUsd = Math.max(0, snapshotBalances['BTC'] || 0) * btcPrice;
+      const usdtUsd = Math.max(0, snapshotBalances['USDT'] || 0) * (assets.find(a => a.symbol === 'USDT')?.current_price_usd || 1);
+
+      result.push({
+        date: dateLabel,
+        totalUsd: Math.round(totalUsdSnapshot * 100) / 100,
+        BTC: Math.round(btcUsd * 100) / 100,
+        USDT: Math.round(usdtUsd * 100) / 100
+      });
+    }
+
+    return result;
+  }, [ledgerEntries, wallets, assets]);
 
   return (
     <div className="space-y-6">
@@ -137,6 +208,65 @@ export const WalletOverview: React.FC<WalletOverviewProps> = ({
               <span>Swap / FX</span>
             </button>
           </div>
+        </div>
+      </div>
+
+      {/* 7-Day Performance Line Chart */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+          <div>
+            <h3 className="font-bold text-white text-sm flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+              7-Day Asset & Portfolio Performance History
+            </h3>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Historical valuation calculated dynamically from double-entry ledger transactions
+            </p>
+          </div>
+          <div className="flex items-center gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800">
+            {[
+              { id: 'ALL', label: 'All Assets' },
+              { id: 'totalUsd', label: 'Total Portfolio' },
+              { id: 'BTC', label: 'Bitcoin' },
+              { id: 'USDT', label: 'USDT' }
+            ].map((btn) => (
+              <button
+                key={btn.id}
+                onClick={() => setActiveMetric(btn.id as any)}
+                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                  activeMetric === btn.id
+                    ? 'bg-amber-500 text-slate-950 font-bold'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                {btn.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="h-64 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+              <XAxis dataKey="date" stroke="#64748b" tick={{ fontSize: 11 }} />
+              <YAxis stroke="#64748b" tick={{ fontSize: 11 }} tickFormatter={(val) => `$${val >= 1000 ? (val / 1000).toFixed(0) + 'k' : val}`} />
+              <Tooltip
+                contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '0.75rem', fontSize: '12px', color: '#fff' }}
+                formatter={(value: any) => [`$${Number(value).toLocaleString('en-US', { minimumFractionDigits: 2 })}`, '']}
+              />
+              <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} />
+              {(activeMetric === 'ALL' || activeMetric === 'totalUsd') && (
+                <Line type="monotone" dataKey="totalUsd" name="Total Portfolio (USD)" stroke="#f59e0b" strokeWidth={2.5} dot={{ r: 4, fill: '#f59e0b' }} activeDot={{ r: 6 }} />
+              )}
+              {(activeMetric === 'ALL' || activeMetric === 'BTC') && (
+                <Line type="monotone" dataKey="BTC" name="Bitcoin (BTC)" stroke="#38bdf8" strokeWidth={2} dot={{ r: 3, fill: '#38bdf8' }} />
+              )}
+              {(activeMetric === 'ALL' || activeMetric === 'USDT') && (
+                <Line type="monotone" dataKey="USDT" name="Tether (USDT)" stroke="#34d399" strokeWidth={2} dot={{ r: 3, fill: '#34d399' }} />
+              )}
+            </LineChart>
+          </ResponsiveContainer>
         </div>
       </div>
 

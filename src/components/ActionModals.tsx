@@ -25,10 +25,11 @@ interface ActionModalsProps {
   onClose: () => void;
   assets: Asset[];
   wallets: WalletAccount[];
+  externalWallets?: ExternalWallet[];
   initialSymbol?: string;
   onExecuteSend: (symbol: string, recipient: string, amount: number) => Promise<void>;
   onExecuteWithdraw: (symbol: string, destination: string, amount: number) => Promise<void>;
-  onConnectExternalWallet: (type: 'METAMASK' | 'WALLETCONNECT' | 'PHANTOM') => void;
+  onConnectExternalWallet: (type: ExternalWallet['type']) => void;
 }
 
 export const ActionModals: React.FC<ActionModalsProps> = ({
@@ -36,6 +37,7 @@ export const ActionModals: React.FC<ActionModalsProps> = ({
   onClose,
   assets,
   wallets,
+  externalWallets = [],
   initialSymbol = 'USDT',
   onExecuteSend,
   onExecuteWithdraw,
@@ -47,6 +49,7 @@ export const ActionModals: React.FC<ActionModalsProps> = ({
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [copied, setCopied] = useState<boolean>(false);
   const [copiedUri, setCopiedUri] = useState<boolean>(false);
+  const [walletSearch, setWalletSearch] = useState<string>('');
 
   // Receive modal custom amount & note state
   const [receiveAmount, setReceiveAmount] = useState<string>('');
@@ -537,70 +540,94 @@ export const ActionModals: React.FC<ActionModalsProps> = ({
           </div>
         )}
 
-        {/* 5. CONNECT NON-CUSTODIAL WALLET MODAL */}
+        {/* 5. CONNECT NON-CUSTODIAL WALLET OR BANK APP MODAL */}
         {modalType === 'CONNECT_WALLET' && (
           <div>
-            <div className="flex items-center gap-2.5 mb-4">
+            <div className="flex items-center gap-2.5 mb-3">
               <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400">
                 <Wallet className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-white">Connect Non-Custodial Web3 Wallet</h3>
-                <p className="text-xs text-slate-400">Never shares your private key or seed phrase</p>
+                <h3 className="text-lg font-bold text-white">Connect Wallet or Bank App</h3>
+                <p className="text-xs text-slate-400">Link Web3 wallets, Lightning nodes, and international bank accounts</p>
               </div>
             </div>
 
-            <div className="space-y-2.5 text-xs">
-              <button
-                onClick={() => {
-                  onConnectExternalWallet('METAMASK');
-                  onClose();
-                }}
-                className="w-full p-3.5 bg-slate-950 hover:bg-slate-850 rounded-xl border border-slate-800 flex items-center justify-between text-left transition-colors cursor-pointer"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">🦊</span>
-                  <div>
-                    <div className="font-bold text-white">MetaMask</div>
-                    <div className="text-[11px] text-slate-400">Ethereum, Polygon, Arbitrum & BSC</div>
-                  </div>
-                </div>
-                <span className="text-amber-400 font-semibold text-[11px]">Connect</span>
-              </button>
+            {/* Search filter input */}
+            <div className="mb-3">
+              <input
+                type="text"
+                placeholder="Search wallets, LNbits, Spark, banks..."
+                value={walletSearch}
+                onChange={(e) => setWalletSearch(e.target.value)}
+                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+              />
+            </div>
 
-              <button
-                onClick={() => {
-                  onConnectExternalWallet('WALLETCONNECT');
-                  onClose();
-                }}
-                className="w-full p-3.5 bg-slate-950 hover:bg-slate-850 rounded-xl border border-slate-800 flex items-center justify-between text-left transition-colors cursor-pointer"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">🌐</span>
-                  <div>
-                    <div className="font-bold text-white">WalletConnect v2</div>
-                    <div className="text-[11px] text-slate-400">Trust Wallet, Rainbow, Safe, 300+ Wallets</div>
-                  </div>
-                </div>
-                <span className="text-amber-400 font-semibold text-[11px]">Scan QR</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  onConnectExternalWallet('PHANTOM');
-                  onClose();
-                }}
-                className="w-full p-3.5 bg-slate-950 hover:bg-slate-850 rounded-xl border border-slate-800 flex items-center justify-between text-left transition-colors cursor-pointer"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">👻</span>
-                  <div>
-                    <div className="font-bold text-white">Phantom Wallet</div>
-                    <div className="text-[11px] text-slate-400">Solana, Bitcoin & Ethereum</div>
-                  </div>
-                </div>
-                <span className="text-amber-400 font-semibold text-[11px]">Connect</span>
-              </button>
+            <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {[
+                  { id: 'SPARK', name: 'Spark Wallet', desc: 'Lightning L2 & Bitcoin Protocol', icon: '⚡', category: 'Web3 & Crypto' },
+                  { id: 'LNBITS', name: 'LNbits Hub', desc: 'Custom Lightning Accounts & Extensions', icon: '⚡', category: 'Lightning & FinTech' },
+                  { id: 'STRIKE', name: 'Strike Global', desc: 'Instant Lightning & Borderless Payments', icon: '⚡', category: 'Lightning & FinTech' },
+                  { id: 'METAMASK', name: 'MetaMask', desc: 'Ethereum, Polygon, Arbitrum & BSC', icon: '🦊', category: 'Web3 & Crypto' },
+                  { id: 'PHANTOM', name: 'Phantom Wallet', desc: 'Solana, Bitcoin & Ethereum', icon: '👻', category: 'Web3 & Crypto' },
+                  { id: 'COINBASE', name: 'Coinbase Wallet', desc: 'Base L2 & Self-Custody', icon: '🔵', category: 'Web3 & Crypto' },
+                  { id: 'WALLETCONNECT', name: 'WalletConnect v2', desc: 'Trust Wallet, Rainbow & 300+ Wallets', icon: '🌐', category: 'Web3 & Crypto' },
+                  { id: 'HARDWARE_LEDGER', name: 'Hardware Ledger', desc: 'Cold Storage Secure Enclave', icon: '🔒', category: 'Web3 & Crypto' },
+                  { id: 'CASHAPP', name: 'Cash App', desc: 'Bitcoin & US Stablecoin Routing', icon: '💚', category: 'Lightning & FinTech' },
+                  { id: 'REVOLUT', name: 'Revolut Banking', desc: 'Multi-Currency IBAN & FX', icon: '💳', category: 'Lightning & FinTech' },
+                  { id: 'CHIME', name: 'Chime FinTech', desc: 'US Checking & Direct Deposit', icon: '🏦', category: 'Lightning & FinTech' },
+                  { id: 'MONZO', name: 'Monzo UK', desc: 'UK Banking & Savings Pots', icon: '🟠', category: 'Lightning & FinTech' },
+                  { id: 'PAYPAL', name: 'PayPal Digital', desc: 'Global P2P & Merchant Checkout', icon: '🅿️', category: 'Lightning & FinTech' },
+                  { id: 'CHASE', name: 'Chase Bank', desc: 'US Commercial & Retail Banking', icon: '🏛️', category: 'Commercial Banks' },
+                  { id: 'BOA', name: 'Bank of America', desc: 'Checking, Savings & Wire Transfer', icon: '🏢', category: 'Commercial Banks' },
+                  { id: 'EQUITY', name: 'Equity Bank East Africa', desc: 'East African Cross-Border Settlement', icon: '🌍', category: 'Commercial Banks' }
+                ]
+                  .filter((w) =>
+                    w.name.toLowerCase().includes(walletSearch.toLowerCase()) ||
+                    w.desc.toLowerCase().includes(walletSearch.toLowerCase()) ||
+                    w.category.toLowerCase().includes(walletSearch.toLowerCase())
+                  )
+                  .map((w) => {
+                    const isConnected = externalWallets.some((ew) => ew.type === w.id);
+                    return (
+                      <button
+                        key={w.id}
+                        onClick={() => {
+                          onConnectExternalWallet(w.id as any);
+                          onClose();
+                        }}
+                        className={`p-3 rounded-xl border flex flex-col justify-between text-left transition-colors cursor-pointer ${
+                          isConnected
+                            ? 'bg-emerald-950/20 border-emerald-500/40 hover:bg-emerald-950/30'
+                            : 'bg-slate-950 hover:bg-slate-900 border-slate-800'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <div className="flex items-center gap-2.5">
+                            <span className="text-xl">{w.icon}</span>
+                            <div>
+                              <div className="font-bold text-white text-xs">{w.name}</div>
+                              <div className="text-[10px] text-slate-400">{w.category}</div>
+                            </div>
+                          </div>
+                          {isConnected ? (
+                            <span className="flex items-center gap-1 text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full shrink-0">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                              Connected
+                            </span>
+                          ) : (
+                            <span className="text-amber-400 font-semibold text-[10px] bg-amber-500/10 px-2 py-0.5 rounded-full shrink-0">
+                              Connect
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-400 line-clamp-2">{w.desc}</p>
+                      </button>
+                    );
+                  })}
+              </div>
             </div>
           </div>
         )}

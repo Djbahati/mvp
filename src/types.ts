@@ -106,7 +106,7 @@ export interface MobileMoneyTransaction {
 
 export interface ExternalWallet {
   id: string;
-  type: 'METAMASK' | 'WALLETCONNECT' | 'PHANTOM' | 'HARDWARE_LEDGER';
+  type: 'METAMASK' | 'WALLETCONNECT' | 'PHANTOM' | 'HARDWARE_LEDGER' | 'SPARK' | 'COINBASE' | 'CASHAPP' | 'LNBITS' | 'STRIKE' | 'REVOLUT' | 'CHIME' | 'MONZO' | 'PAYPAL' | 'CHASE' | 'BOA' | 'EQUITY';
   address: string;
   network: string;
   connected_at: string;
@@ -344,7 +344,45 @@ export interface UssdSession {
   history: string[];
 }
 
-export interface SystemServiceStatus {
+export type UserRole = 'USER' | 'ADMIN' | 'BUSINESS' | 'MERCHANT' | 'SUPPORT';
+
+export interface User {
+  id: string;
+  first_name: string;
+  last_name: string;
+  username: string;
+  email: string;
+  phone_number: string;
+  country: string;
+  password_hash: string;
+  email_verified: boolean;
+  phone_verified: boolean;
+  account_status: 'ACTIVE' | 'PENDING_VERIFICATION' | 'SUSPENDED' | 'DISABLED';
+  role: UserRole;
+  profile_image?: string;
+  created_at: string;
+  updated_at: string;
+  last_login?: string;
+}
+
+export interface AuthSession {
+  sessionId: string;
+  userId: string;
+  accessToken: string;
+  refreshToken: string;
+  expiresAt: string;
+}
+
+export interface AuthState {
+  isAuthenticated: boolean;
+  currentUser: User | null;
+  userRole: UserRole | null;
+  emailVerified: boolean;
+  phoneVerified: boolean;
+  loading: boolean;
+}
+
+export type SystemServiceStatus = {
   name: string;
   language: 'Rust' | 'Go' | 'C#' | 'Java' | 'PostgreSQL';
   role: string;
@@ -357,4 +395,7 @@ export interface SystemServiceStatus {
     memory_mb: number;
     uptime: string;
   };
-}
+};
+
+
+
