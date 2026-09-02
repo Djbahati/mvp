@@ -61,8 +61,6 @@ const INITIAL_USER_PROFILE: UserProfile = {
 };
 
 function DashboardApp() {
-  const { isAuthenticated, loading } = useAuth();
-
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     const saved = localStorage.getItem('kofi_theme');
     return saved === 'light' ? 'light' : 'dark';
@@ -104,21 +102,6 @@ function DashboardApp() {
   const [modalType, setModalType] = useState<'SEND' | 'RECEIVE' | 'DEPOSIT' | 'WITHDRAW' | 'CONNECT_WALLET' | null>(null);
   const [selectedAssetSymbol, setSelectedAssetSymbol] = useState<string>('USDT');
   const [highRiskBiometricRequest, setHighRiskBiometricRequest] = useState<HighRiskActionRequest | null>(null);
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-100">
-        <div className="text-center space-y-3">
-          <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
-          <p className="text-sm font-medium text-slate-400">Loading Kofi Platform...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!isAuthenticated) {
-    return <AuthScreen />;
-  }
 
   // Helper to intercept and gate high-risk financial transactions with WebAuthn Biometrics
   const requestBiometricAuth = (
@@ -1209,10 +1192,31 @@ function DashboardApp() {
   );
 }
 
+function AppContent() {
+  const { isAuthenticated, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-100">
+        <div className="text-center space-y-3">
+          <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+          <p className="text-sm font-medium text-slate-400">Loading Kofi Platform...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <AuthScreen />;
+  }
+
+  return <DashboardApp />;
+}
+
 export default function App() {
   return (
     <AuthProvider>
-      <DashboardApp />
+      <AppContent />
     </AuthProvider>
   );
 }

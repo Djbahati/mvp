@@ -505,6 +505,24 @@ async function startServer() {
   // --- KOFI AUTHENTICATION SYSTEM ---
   const usersStore: any[] = [
     {
+      id: "usr_pierre_admin",
+      first_name: "Pierre",
+      last_name: "Bahati",
+      username: "pierrebahati",
+      email: "pierrebahati508@gmail.com",
+      phone_number: "+250780999999",
+      country: "Rwanda",
+      password_hash: hashPassword("Pierre@12345"),
+      email_verified: true,
+      phone_verified: true,
+      account_status: "ACTIVE",
+      role: "ADMIN",
+      profile_image: "",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      last_login: new Date().toISOString()
+    },
+    {
       id: "usr_admin_1",
       first_name: "System",
       last_name: "Administrator",
