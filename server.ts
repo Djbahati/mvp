@@ -13,6 +13,17 @@ async function startServer() {
   app.use(express.urlencoded({ extended: true }));
   app.use(express.json());
 
+  // CORS middleware for Netlify & cross-origin proxying
+  app.use((req, res, next) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    if (req.method === 'OPTIONS') {
+      return res.sendStatus(200);
+    }
+    next();
+  });
+
   // Spark Wallet SDK Endpoints
   app.post("/api/spark/wallet/init", async (req, res) => {
     try {
