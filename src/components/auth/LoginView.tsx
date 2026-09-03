@@ -79,6 +79,24 @@ export const LoginView: React.FC = () => {
         <p className="text-xs text-slate-400 mt-1">Secure Multi-Currency Wallet & Payment Ecosystem</p>
       </div>
 
+      {/* Admin Credentials Quick Hint */}
+      <div className="mb-5 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <span className="font-semibold text-amber-400">Admin Portal Access:</span>
+          <button
+            type="button"
+            onClick={handleQuickAdminLogin}
+            className="text-[11px] underline font-bold text-amber-300 hover:text-white cursor-pointer"
+          >
+            Auto-fill Admin Pass
+          </button>
+        </div>
+        <div className="font-mono text-[11px] text-slate-300">
+          Email: <span className="text-white">pierrebahati508@gmail.com</span><br/>
+          Password: <span className="text-white">Pierre@12345</span>
+        </div>
+      </div>
+
 
 
       {error && (
