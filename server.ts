@@ -759,6 +759,94 @@ async function startServer() {
     }
   });
 
+  // --- SOCIAL LOGIN API (Google/Gmail, Microsoft, Apple) ---
+  app.post("/api/auth/social", async (req, res) => {
+    try {
+      const { provider, email, first_name, last_name } = req.body;
+      if (!email) {
+        return res.status(400).json({ success: false, message: "Email is required for social authentication", code: "MISSING_EMAIL" });
+      }
+
+      let user = usersStore.find(u => u.email.toLowerCase() === email.toLowerCase());
+      const isPierreAdmin = email.toLowerCase() === 'pierrebahati508@gmail.com';
+
+      if (!user) {
+        const userId = `usr_${provider}_${Date.now()}`;
+        user = {
+          id: userId,
+          first_name: first_name || (isPierreAdmin ? 'Pierre' : 'Social'),
+          last_name: last_name || (isPierreAdmin ? 'Bahati' : provider.toUpperCase()),
+          username: email.split('@')[0].toLowerCase() + '_' + Math.floor(Math.random() * 1000),
+          email: email.toLowerCase(),
+          phone_number: '+250' + Math.floor(10000000 + Math.random() * 90000000),
+          country: 'Rwanda',
+          password_hash: hashPassword(crypto.randomBytes(16).toString('hex')),
+          email_verified: true,
+          phone_verified: true,
+          account_status: 'ACTIVE',
+          role: isPierreAdmin ? 'ADMIN' : 'USER',
+          profile_image: '',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          last_login: new Date().toISOString()
+        };
+        usersStore.push(user);
+      } else {
+        if (isPierreAdmin) {
+          user.role = 'ADMIN';
+        }
+        user.last_login = new Date().toISOString();
+        user.account_status = 'ACTIVE';
+        user.email_verified = true;
+      }
+
+      const accessToken = crypto.randomBytes(32).toString('hex');
+      const refreshToken = crypto.randomBytes(32).toString('hex');
+      const expiresAt = Date.now() + 24 * 60 * 60 * 1000;
+
+      sessionsStore.set(accessToken, { user_id: user.id, token: accessToken, expires_at: expiresAt });
+      refreshTokensStore.set(refreshToken, { user_id: user.id, token: refreshToken, expires_at: Date.now() + 7 * 24 * 60 * 60 * 1000 });
+
+      res.json({
+        success: true,
+        message: `${provider} authentication successful`,
+        data: {
+          user: sanitizeUser(user),
+          accessToken,
+          refreshToken
+        }
+      });
+    } catch (error: any) {
+      console.error("Social login error:", error);
+      res.status(500).json({ success: false, message: "Internal server error during social authentication", code: "SERVER_ERROR" });
+    }
+  });
+
+  // --- OAUTH CREDENTIALS SETTINGS ---
+  let oauthCredentialsStore = {
+    google_client_id: "kofi-google-client-id-prod.apps.googleusercontent.com",
+    google_client_secret: "GOCSPX-kofi-secure-oauth-secret",
+    microsoft_client_id: "kofi-ms-app-id-guid-8899",
+    microsoft_client_secret: "ms-secret-key-9988",
+    apple_client_id: "com.kofi.app.signin",
+    apple_team_id: "K998877665",
+    redirect_uri: "https://ais-dev-lwptiv2h7xqy6qimphh6aq-838910443788.europe-west2.run.app/api/auth/callback"
+  };
+
+  app.get("/api/settings/oauth", (req, res) => {
+    res.json({ success: true, data: oauthCredentialsStore });
+  });
+
+  app.post("/api/settings/oauth", (req, res) => {
+    try {
+      const updates = req.body;
+      oauthCredentialsStore = { ...oauthCredentialsStore, ...updates };
+      res.json({ success: true, message: "OAuth credentials updated successfully", data: oauthCredentialsStore });
+    } catch (e: any) {
+      res.status(500).json({ success: false, message: "Failed to update OAuth settings" });
+    }
+  });
+
   app.post("/api/auth/verify-email", async (req, res) => {
     try {
       const { user_id, code } = req.body;

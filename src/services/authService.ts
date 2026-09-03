@@ -55,5 +55,20 @@ export const authService = {
   async resetPassword(token: string, new_password: string) {
     const res = await axios.post('/api/auth/reset-password', { token, new_password });
     return res.data;
+  },
+
+  async socialLogin(provider: string, profile: { email: string; first_name?: string; last_name?: string }) {
+    const res = await axios.post('/api/auth/social', { provider, ...profile });
+    return res.data;
+  },
+
+  async getOAuthConfig() {
+    const res = await axios.get('/api/settings/oauth');
+    return res.data;
+  },
+
+  async saveOAuthConfig(config: any) {
+    const res = await axios.post('/api/settings/oauth', config);
+    return res.data;
   }
 };

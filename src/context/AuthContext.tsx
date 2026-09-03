@@ -23,6 +23,7 @@ interface AuthContextType {
   resendVerification: (type: 'email' | 'phone') => Promise<void>;
   forgotPassword: (identifier: string) => Promise<void>;
   resetPassword: (token: string, newPass: string) => Promise<void>;
+  socialLogin: (provider: string, profile: { email: string; first_name?: string; last_name?: string }) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -181,6 +182,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setAuthView('login');
   };
 
+  const socialLogin = async (provider: string, profile: { email: string; first_name?: string; last_name?: string }) => {
+    setLoading(true);
+    try {
+      const res = await authService.socialLogin(provider, profile);
+      if (res.success && res.data) {
+        localStorage.setItem('kofi_access_token', res.data.accessToken);
+        localStorage.setItem('kofi_refresh_token', res.data.refreshToken);
+        setCurrentUser(res.data.user);
+      } else {
+        throw new Error(res.message || 'Social login failed');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const value = {
     isAuthenticated: !!currentUser && currentUser.account_status === 'ACTIVE',
     currentUser,
@@ -201,7 +218,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     verifyPhone,
     resendVerification,
     forgotPassword,
-    resetPassword
+    resetPassword,
+    socialLogin
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
