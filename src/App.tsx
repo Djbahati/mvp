@@ -4,6 +4,7 @@ import { Navbar } from './components/Navbar';
 import { WalletOverview } from './components/WalletOverview';
 import { MobileMoneyGateway } from './components/MobileMoneyGateway';
 import { LedgerExplorer } from './components/LedgerExplorer';
+import { TransactionMonitoringDashboard } from './components/TransactionMonitoringDashboard';
 import { ExchangeEngine } from './components/ExchangeEngine';
 import { B2BPortal } from './components/B2BPortal';
 import { MiningHub } from './components/MiningHub';
@@ -1081,6 +1082,14 @@ function DashboardApp() {
             ledgerEntries={ledgerEntries}
             wallets={wallets}
             onPostJournalEntry={handlePostJournalEntry}
+          />
+        )}
+
+        {activeTab === 'monitoring' && (
+          <TransactionMonitoringDashboard
+            transactions={transactions}
+            ledgerEntries={ledgerEntries}
+            momoLogs={momoLogs}
           />
         )}
 
