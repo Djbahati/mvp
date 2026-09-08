@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kofi Platform | Secure Financial Ecosystem</title>
+    <meta name="description" content="Multi-currency digital wallet and fintech platform integrating Mobile Money, Fiat, Crypto, B2B payments, and double-entry ledger." />
+    <meta property="og:title" content="Kofi Platform | Secure Financial Ecosystem" />
+    <meta property="og:description" content="Multi-currency digital wallet and fintech platform integrating Mobile Money, Fiat, Crypto, B2B payments, and double-entry ledger." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <script>
+      // Suppress Vite HMR WebSocket connection closed without opened errors
+      window.addEventListener('error', function(e) {
+        if (e.message && e.message.includes('WebSocket')) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      }, true);
+      window.addEventListener('unhandledrejection', function(e) {
+        const reason = e.reason?.message || String(e.reason || '');
+        if (reason.includes('WebSocket') || reason.includes('closed without opened')) {
+          e.preventDefault();
+        }
+      });
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+
