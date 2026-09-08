@@ -57,15 +57,15 @@ export const LoginView: React.FC = () => {
   };
 
   const handleQuickAdminLogin = () => {
-    setIdentifier('pierrebahati508@gmail.com');
-    setPassword('Pierre@12345');
+    setIdentifier('admin@kofi.app');
+    setPassword('KofiAdmin!2026');
   };
 
   const handleQuickAdminSocial = () => {
     socialLogin('google', {
-      email: 'pierrebahati508@gmail.com',
-      first_name: 'Pierre',
-      last_name: 'Bahati'
+      email: 'admin@kofi.app',
+      first_name: 'Admin',
+      last_name: 'User'
     }).catch(err => setError(err.message));
   };
 
@@ -92,8 +92,8 @@ export const LoginView: React.FC = () => {
           </button>
         </div>
         <div className="font-mono text-[11px] text-slate-300">
-          Email: <span className="text-white">pierrebahati508@gmail.com</span><br/>
-          Password: <span className="text-white">Pierre@12345</span>
+          Email: <span className="text-white">admin@kofi.app</span><br/>
+          Password: <span className="text-white">KofiAdmin!2026</span>
         </div>
       </div>
 
@@ -116,7 +116,7 @@ export const LoginView: React.FC = () => {
               required
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
-              placeholder="pierrebahati508@gmail.com"
+              placeholder="admin@kofi.app"
               className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-amber-500 transition-colors"
             />
           </div>
@@ -216,7 +216,7 @@ export const LoginView: React.FC = () => {
           onClick={handleQuickAdminSocial}
           className="w-full mt-3 py-2 px-3 bg-emerald-500/10 border border-emerald-500/30 hover:bg-emerald-500/20 text-emerald-300 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer"
         >
-          <span>⚡ Instant Admin Login via Google (pierrebahati508@gmail.com)</span>
+          <span>⚡ Instant Admin Login via Google (admin@kofi.app)</span>
         </button>
       </div>
 
@@ -261,7 +261,7 @@ export const LoginView: React.FC = () => {
                 required
                 value={socialEmail}
                 onChange={(e) => setSocialEmail(e.target.value)}
-                placeholder="pierrebahati508@gmail.com"
+                placeholder="admin@kofi.app"
                 className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500"
               />
             </div>

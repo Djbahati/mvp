@@ -1,12 +1,29 @@
 import axios from 'axios';
 
+const DEMO_ADMIN_EMAIL = 'admin@kofi.app';
+const DEMO_ADMIN_PASSWORD = 'KofiAdmin!2026';
+const LEGACY_ADMIN_EMAIL = 'pierrebahati508@gmail.com';
+const LEGACY_ADMIN_PASSWORD = 'Pierre@12345';
+
+const normalizeIdentifier = (value: string) => String(value || '').trim().toLowerCase();
+
+const isDemoAdminCredentials = (identifier: string, password: string) => {
+  const normalizedIdentifier = normalizeIdentifier(identifier);
+  const normalizedPassword = String(password || '').trim();
+
+  return (
+    (normalizedIdentifier === DEMO_ADMIN_EMAIL && normalizedPassword === DEMO_ADMIN_PASSWORD) ||
+    (normalizedIdentifier === LEGACY_ADMIN_EMAIL && normalizedPassword === LEGACY_ADMIN_PASSWORD)
+  );
+};
+
 // Helper to simulate fallback user when backend API is not available (e.g. static Netlify deployment)
 const getFallbackUser = (email: string, firstName?: string, lastName?: string, role: string = 'USER') => {
-  const isPierre = email.toLowerCase() === 'pierrebahati508@gmail.com' || role === 'ADMIN';
+  const isAdmin = normalizeIdentifier(email) === DEMO_ADMIN_EMAIL || normalizeIdentifier(email) === LEGACY_ADMIN_EMAIL || role === 'ADMIN';
   return {
     id: `usr_fallback_${Date.now()}`,
-    first_name: firstName || (isPierre ? 'Pierre' : 'User'),
-    last_name: lastName || (isPierre ? 'Bahati' : 'Kofi'),
+    first_name: firstName || (isAdmin ? 'Admin' : 'User'),
+    last_name: lastName || (isAdmin ? 'User' : 'Kofi'),
     username: email.split('@')[0].toLowerCase() + '_' + Math.floor(Math.random() * 1000),
     email: email.toLowerCase(),
     phone_number: '+250780000000',
@@ -14,7 +31,7 @@ const getFallbackUser = (email: string, firstName?: string, lastName?: string, r
     email_verified: true,
     phone_verified: true,
     account_status: 'ACTIVE',
-    role: isPierre ? 'ADMIN' : 'USER',
+    role: isAdmin ? 'ADMIN' : 'USER',
     profile_image: '',
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
@@ -29,7 +46,9 @@ export const authService = {
       return res.data;
     } catch (err: any) {
       if (err.response?.status === 404 || err.code === 'ERR_NETWORK') {
-        const user = getFallbackUser(data.email, data.first_name, data.last_name, data.email === 'pierrebahati508@gmail.com' ? 'ADMIN' : 'USER');
+        const email = String(data.email || '').trim();
+        const isAdmin = isDemoAdminCredentials(email, String(data.password || '')) || normalizeIdentifier(email) === LEGACY_ADMIN_EMAIL;
+        const user = getFallbackUser(email || 'user@kofi.app', data.first_name || 'User', data.last_name || 'Account', isAdmin ? 'ADMIN' : 'USER');
         const token = 'fallback_token_' + Date.now();
         localStorage.setItem('kofi_fallback_user', JSON.stringify(user));
         return {
@@ -48,8 +67,20 @@ export const authService = {
       return res.data;
     } catch (err: any) {
       if (err.response?.status === 404 || err.code === 'ERR_NETWORK') {
-        const isAdmin = identifier.toLowerCase() === 'pierrebahati508@gmail.com';
-        const user = getFallbackUser(identifier.includes('@') ? identifier : `${identifier}@kofi.app`, isAdmin ? 'Pierre' : 'User', isAdmin ? 'Bahati' : 'Account', isAdmin ? 'ADMIN' : 'USER');
+        if (!isDemoAdminCredentials(identifier, password)) {
+          return {
+            success: false,
+            message: 'Invalid email or password.'
+          };
+        }
+
+        const normalizedIdentifier = normalizeIdentifier(identifier) || DEMO_ADMIN_EMAIL;
+        const user = getFallbackUser(
+          normalizedIdentifier,
+          normalizedIdentifier === DEMO_ADMIN_EMAIL || normalizedIdentifier === LEGACY_ADMIN_EMAIL ? 'Admin' : 'User',
+          normalizedIdentifier === DEMO_ADMIN_EMAIL || normalizedIdentifier === LEGACY_ADMIN_EMAIL ? 'User' : 'Account',
+          'ADMIN'
+        );
         const token = 'fallback_token_' + Date.now();
         localStorage.setItem('kofi_fallback_user', JSON.stringify(user));
         return {
