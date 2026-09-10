@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import axios from 'axios';
 import { Navbar } from './components/Navbar';
 import { WalletOverview } from './components/WalletOverview';
@@ -1312,155 +1313,165 @@ function DashboardApp() {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6">
-        {activeTab === 'wallets' && (
-          <WalletOverview
-            wallets={wallets}
-            externalWallets={externalWallets}
-            transactions={transactions}
-            assets={assets}
-            ledgerEntries={ledgerEntries}
-            quickRecipients={quickRecipients}
-            priceAlerts={priceAlerts}
-            onOpenSend={(sym) => {
-              setSelectedAssetSymbol(sym || 'USDT');
-              setQuickSendInitialRecipient('');
-              setQuickSendInitialAmount('');
-              setModalType('SEND');
-            }}
-            onOpenReceive={(sym) => {
-              setSelectedAssetSymbol(sym || 'USDT');
-              setModalType('RECEIVE');
-            }}
-            onOpenDeposit={() => setModalType('DEPOSIT')}
-            onOpenWithdraw={() => setModalType('WITHDRAW')}
-            onOpenSwap={(sym) => {
-              if (sym) setSelectedAssetSymbol(sym);
-              setActiveTab('exchange');
-            }}
-            onOpenConnectWallet={() => setModalType('CONNECT_WALLET')}
-            onSelectTab={setActiveTab}
-            onOpenQrScanner={() => setIsQrScannerOpen(true)}
-            onSelectRecipientToSend={handleQuickSendClick}
-            onAddQuickRecipient={handleAddQuickRecipient}
-            onDeleteQuickRecipient={handleDeleteQuickRecipient}
-            onToggleQuickFavorite={handleToggleQuickFavorite}
-            onOpenCreatePriceAlert={handleOpenCreatePriceAlert}
-            onTogglePriceAlert={handleTogglePriceAlert}
-            onDeletePriceAlert={handleDeletePriceAlert}
-            onSimulateTriggerAlert={handleSimulateTriggerAlert}
-          />
-        )}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeTab}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.18, ease: 'easeOut' }}
+          >
+            {activeTab === 'wallets' && (
+              <WalletOverview
+                wallets={wallets}
+                externalWallets={externalWallets}
+                transactions={transactions}
+                assets={assets}
+                ledgerEntries={ledgerEntries}
+                quickRecipients={quickRecipients}
+                priceAlerts={priceAlerts}
+                onOpenSend={(sym) => {
+                  setSelectedAssetSymbol(sym || 'USDT');
+                  setQuickSendInitialRecipient('');
+                  setQuickSendInitialAmount('');
+                  setModalType('SEND');
+                }}
+                onOpenReceive={(sym) => {
+                  setSelectedAssetSymbol(sym || 'USDT');
+                  setModalType('RECEIVE');
+                }}
+                onOpenDeposit={() => setModalType('DEPOSIT')}
+                onOpenWithdraw={() => setModalType('WITHDRAW')}
+                onOpenSwap={(sym) => {
+                  if (sym) setSelectedAssetSymbol(sym);
+                  setActiveTab('exchange');
+                }}
+                onOpenConnectWallet={() => setModalType('CONNECT_WALLET')}
+                onSelectTab={setActiveTab}
+                onOpenQrScanner={() => setIsQrScannerOpen(true)}
+                onSelectRecipientToSend={handleQuickSendClick}
+                onAddQuickRecipient={handleAddQuickRecipient}
+                onDeleteQuickRecipient={handleDeleteQuickRecipient}
+                onToggleQuickFavorite={handleToggleQuickFavorite}
+                onOpenCreatePriceAlert={handleOpenCreatePriceAlert}
+                onTogglePriceAlert={handleTogglePriceAlert}
+                onDeletePriceAlert={handleDeletePriceAlert}
+                onSimulateTriggerAlert={handleSimulateTriggerAlert}
+              />
+            )}
 
-        {activeTab === 'momo' && (
-          <MobileMoneyGateway
-            userProfile={userProfile}
-            onOpenUssdModal={() => setIsUssdModalOpen(true)}
-            onExecuteMoMoDeposit={handleExecuteMoMoDeposit}
-            onExecuteMoMoWithdraw={handleExecuteMoMoWithdraw}
-            momoLogs={momoLogs}
-            currentRwfBalance={wallets.find((w) => w.symbol === 'RWF')?.balance || 0}
-          />
-        )}
+            {activeTab === 'momo' && (
+              <MobileMoneyGateway
+                userProfile={userProfile}
+                onOpenUssdModal={() => setIsUssdModalOpen(true)}
+                onExecuteMoMoDeposit={handleExecuteMoMoDeposit}
+                onExecuteMoMoWithdraw={handleExecuteMoMoWithdraw}
+                momoLogs={momoLogs}
+                currentRwfBalance={wallets.find((w) => w.symbol === 'RWF')?.balance || 0}
+              />
+            )}
 
-        {activeTab === 'ledger' && (
-          <LedgerExplorer
-            ledgerEntries={ledgerEntries}
-            wallets={wallets}
-            onPostJournalEntry={handlePostJournalEntry}
-          />
-        )}
+            {activeTab === 'ledger' && (
+              <LedgerExplorer
+                ledgerEntries={ledgerEntries}
+                wallets={wallets}
+                onPostJournalEntry={handlePostJournalEntry}
+              />
+            )}
 
-        {activeTab === 'monitoring' && (
-          <TransactionMonitoringDashboard
-            transactions={transactions}
-            ledgerEntries={ledgerEntries}
-            momoLogs={momoLogs}
-          />
-        )}
+            {activeTab === 'monitoring' && (
+              <TransactionMonitoringDashboard
+                transactions={transactions}
+                ledgerEntries={ledgerEntries}
+                momoLogs={momoLogs}
+              />
+            )}
 
-        {activeTab === 'exchange' && (
-          <ExchangeEngine
-            assets={assets}
-            wallets={wallets}
-            onExecuteSwap={handleExecuteSwap}
-          />
-        )}
+            {activeTab === 'exchange' && (
+              <ExchangeEngine
+                assets={assets}
+                wallets={wallets}
+                onExecuteSwap={handleExecuteSwap}
+              />
+            )}
 
-        {activeTab === 'b2b' && (
-          <B2BPortal
-            merchant={merchant}
-            onCreateInvoice={handleCreateInvoice}
-            onGenerateApiKey={handleGenerateApiKey}
-            onApproveFourEyesPayout={handleApproveFourEyesPayout}
-            onPayInvoice={handlePayInvoice}
-            onSignMultiSigProposal={handleSignMultiSigProposal}
-            onRejectMultiSigProposal={handleRejectMultiSigProposal}
-            onExecuteMultiSigProposal={handleExecuteMultiSigProposal}
-            onCreateMultiSigProposal={handleCreateMultiSigProposal}
-            onSaveMultiSigPolicy={handleSaveMultiSigPolicy}
-            onAddMultiSigSigner={handleAddMultiSigSigner}
-          />
-        )}
+            {activeTab === 'b2b' && (
+              <B2BPortal
+                merchant={merchant}
+                onCreateInvoice={handleCreateInvoice}
+                onGenerateApiKey={handleGenerateApiKey}
+                onApproveFourEyesPayout={handleApproveFourEyesPayout}
+                onPayInvoice={handlePayInvoice}
+                onSignMultiSigProposal={handleSignMultiSigProposal}
+                onRejectMultiSigProposal={handleRejectMultiSigProposal}
+                onExecuteMultiSigProposal={handleExecuteMultiSigProposal}
+                onCreateMultiSigProposal={handleCreateMultiSigProposal}
+                onSaveMultiSigPolicy={handleSaveMultiSigPolicy}
+                onAddMultiSigSigner={handleAddMultiSigSigner}
+              />
+            )}
 
-        {activeTab === 'mining' && (
-          <MiningHub
-            workers={miningWorkers}
-            rewards={miningRewards}
-            onTriggerVerifiedPayout={() => {}}
-            onMineNewBlock={handleMineNewBlock}
-            onSettleToMoMo={handleSettleMiningRewardToMoMo}
-          />
-        )}
+            {activeTab === 'mining' && (
+              <MiningHub
+                workers={miningWorkers}
+                rewards={miningRewards}
+                onTriggerVerifiedPayout={() => {}}
+                onMineNewBlock={handleMineNewBlock}
+                onSettleToMoMo={handleSettleMiningRewardToMoMo}
+              />
+            )}
 
-        {activeTab === 'compliance' && (
-          <ComplianceKYC
-            kycProfile={kycProfile}
-            onTriggerBiometricTest={(title, details) =>
-              requestBiometricAuth(
-                title,
-                'System-initiated WebAuthn cryptographic hardware test.',
-                'STEP_UP_AUTH',
-                details,
-                () => {}
-              )
-            }
-          />
-        )}
+            {activeTab === 'compliance' && (
+              <ComplianceKYC
+                kycProfile={kycProfile}
+                onTriggerBiometricTest={(title, details) =>
+                  requestBiometricAuth(
+                    title,
+                    'System-initiated WebAuthn cryptographic hardware test.',
+                    'STEP_UP_AUTH',
+                    details,
+                    () => {}
+                  )
+                }
+              />
+            )}
 
-        {activeTab === 'security' && (
-          <SecurityLogsView
-            logs={securityLogs}
-            onClearLogs={() => {
-              setSecurityLogs([]);
-              localStorage.removeItem('kofi_security_logs');
-            }}
-            onSimulateTestAuth={() =>
-              requestBiometricAuth(
-                'Security Log Verification Test',
-                'Manual biometric test audit generated from Security Logs Tab.',
-                'STEP_UP_AUTH',
-                {
-                  amount: 100,
-                  asset: 'USDT',
-                  destination: 'Security Audit Log Center',
-                  riskScore: 25
-                },
-                () => {}
-              )
-            }
-          />
-        )}
+            {activeTab === 'security' && (
+              <SecurityLogsView
+                logs={securityLogs}
+                onClearLogs={() => {
+                  setSecurityLogs([]);
+                  localStorage.removeItem('kofi_security_logs');
+                }}
+                onSimulateTestAuth={() =>
+                  requestBiometricAuth(
+                    'Security Log Verification Test',
+                    'Manual biometric test audit generated from Security Logs Tab.',
+                    'STEP_UP_AUTH',
+                    {
+                      amount: 100,
+                      asset: 'USDT',
+                      destination: 'Security Audit Log Center',
+                      riskScore: 25
+                    },
+                    () => {}
+                  )
+                }
+              />
+            )}
 
-        {!['wallets', 'momo', 'ledger', 'monitoring', 'exchange', 'b2b', 'mining', 'compliance', 'security'].includes(activeTab) && (
-          <EmptyState
-            title="No Active Tab Contents to Display"
-            description="The selected tab view currently contains no active data or is temporarily empty. Return to your multi-currency wallet overview or select a module from the top navigation bar."
-            actionLabel="Return to Wallet Overview"
-            onAction={() => setActiveTab('wallets')}
-            secondaryActionLabel="Open MoMo Gateway"
-            onSecondaryAction={() => setActiveTab('momo')}
-          />
-        )}
+            {!['wallets', 'momo', 'ledger', 'monitoring', 'exchange', 'b2b', 'mining', 'compliance', 'security'].includes(activeTab) && (
+              <EmptyState
+                title="No Active Tab Contents to Display"
+                description="The selected tab view currently contains no active data or is temporarily empty. Return to your multi-currency wallet overview or select a module from the top navigation bar."
+                actionLabel="Return to Wallet Overview"
+                onAction={() => setActiveTab('wallets')}
+                secondaryActionLabel="Open MoMo Gateway"
+                onSecondaryAction={() => setActiveTab('momo')}
+              />
+            )}
+          </motion.div>
+        </AnimatePresence>
       </main>
 
       {/* Security PIN Configuration Modal */}

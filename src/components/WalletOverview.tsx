@@ -194,13 +194,13 @@ export const WalletOverview: React.FC<WalletOverviewProps> = ({
   return (
     <div className="space-y-6">
       {/* Top Banner / Net Worth Card */}
-      <div className="bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl relative overflow-hidden">
-        <div className="absolute right-0 top-0 w-96 h-96 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
+      <div className="bg-gradient-to-br from-slate-900 via-slate-900/90 to-slate-950 border border-slate-800 rounded-2xl p-6 sm:p-7 shadow-2xl relative overflow-hidden transition-all duration-300 hover:border-amber-500/40">
+        <div className="absolute -right-12 -top-12 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
 
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
           <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
                 Total Multi-Currency Portfolio
               </span>
               <span className="bg-emerald-500/10 text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-500/20">
@@ -209,10 +209,10 @@ export const WalletOverview: React.FC<WalletOverviewProps> = ({
             </div>
 
             <div className="flex items-baseline gap-3 flex-wrap">
-              <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
+              <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black font-mono text-white tracking-tight drop-shadow-sm">
                 ${totalUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </h2>
-              <span className="text-sm font-medium text-slate-400">
+              <span className="text-sm sm:text-base font-bold text-amber-400/90 font-mono">
                 ≈ {Math.round(totalRwf).toLocaleString()} RWF
               </span>
 
