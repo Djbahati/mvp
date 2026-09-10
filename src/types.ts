@@ -1,3 +1,29 @@
+export interface QuickRecipient {
+  id: string;
+  name: string;
+  category: 'MOBILE_MONEY' | 'CRYPTO_WALLET' | 'BANK_ACCOUNT' | 'KOFI_P2P';
+  addressOrPhone: string;
+  assetSymbol: string;
+  defaultAmount?: number;
+  network?: string;
+  isFavorite?: boolean;
+  lastSentAt?: string;
+}
+
+export interface PriceAlert {
+  id: string;
+  assetSymbol: string;
+  targetPriceUsd: number;
+  condition: 'ABOVE' | 'BELOW';
+  notificationType: 'IN_APP' | 'SMS' | 'PUSH' | 'EMAIL';
+  phoneNumberOrEmail?: string;
+  note?: string;
+  isEnabled: boolean;
+  isTriggered?: boolean;
+  createdAt: string;
+  lastTriggeredAt?: string;
+}
+
 export type AssetType = 'FIAT' | 'CRYPTO' | 'STABLECOIN';
 
 export interface Asset {
@@ -396,6 +422,27 @@ export type SystemServiceStatus = {
     uptime: string;
   };
 };
+
+export interface SecurityLog {
+  id: string;
+  user_id?: string;
+  event_type:
+    | 'BIOMETRIC_AUTH_SUCCESS'
+    | 'BIOMETRIC_AUTH_FAILED'
+    | 'PASSKEY_ENROLLED'
+    | 'PIN_VERIFIED'
+    | 'PIN_FAILED'
+    | 'STEP_UP_AUTH';
+  action_title: string;
+  status: 'SUCCESS' | 'FAILED';
+  risk_score: number;
+  authenticator_name?: string;
+  ip_address?: string;
+  device_info?: string;
+  error_message?: string;
+  timestamp: string;
+}
+
 
 
 

@@ -10,15 +10,54 @@
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
     <script>
-      // Suppress Vite HMR WebSocket connection closed without opened errors
+      (function() {
+        var NativeWebSocket = window.WebSocket;
+        if (!NativeWebSocket) return;
+
+        function DummyWebSocket(url) {
+          this.readyState = 3; // CLOSED
+          this.bufferedAmount = 0;
+          this.extensions = '';
+          this.protocol = '';
+          this.url = url || '';
+          this.onerror = null;
+          this.onclose = null;
+          this.onopen = null;
+          this.onmessage = null;
+        }
+
+        DummyWebSocket.prototype.send = function() {};
+        DummyWebSocket.prototype.close = function() {};
+        DummyWebSocket.prototype.addEventListener = function() {};
+        DummyWebSocket.prototype.removeEventListener = function() {};
+        DummyWebSocket.prototype.dispatchEvent = function() { return true; };
+
+        var CustomWebSocket = function(url, protocols) {
+          var urlStr = String(url || '');
+          if (urlStr.includes('vite') || urlStr.includes('ws://') || urlStr.includes('wss://')) {
+            return new DummyWebSocket(urlStr);
+          }
+          return new NativeWebSocket(url, protocols);
+        };
+
+        CustomWebSocket.prototype = NativeWebSocket.prototype;
+        CustomWebSocket.CONNECTING = NativeWebSocket.CONNECTING;
+        CustomWebSocket.OPEN = NativeWebSocket.OPEN;
+        CustomWebSocket.CLOSING = NativeWebSocket.CLOSING;
+        CustomWebSocket.CLOSED = NativeWebSocket.CLOSED;
+
+        window.WebSocket = CustomWebSocket;
+      })();
+
       window.addEventListener('error', function(e) {
-        if (e.message && e.message.includes('WebSocket')) {
+        if (e.message && String(e.message).includes('WebSocket')) {
           e.preventDefault();
           e.stopPropagation();
         }
       }, true);
+
       window.addEventListener('unhandledrejection', function(e) {
-        const reason = e.reason?.message || String(e.reason || '');
+        var reason = String(e.reason?.message || e.reason || '');
         if (reason.includes('WebSocket') || reason.includes('closed without opened')) {
           e.preventDefault();
         }

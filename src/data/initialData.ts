@@ -9,8 +9,85 @@ import {
   MiningWorker,
   MiningReward,
   KycProfile,
-  SystemServiceStatus
+  SystemServiceStatus,
+  QuickRecipient,
+  PriceAlert,
+  SecurityLog
 } from '../types';
+
+export const INITIAL_SECURITY_LOGS: SecurityLog[] = [
+  {
+    id: 'sec_log_101',
+    event_type: 'BIOMETRIC_AUTH_SUCCESS',
+    action_title: 'High-Value Transfer ($2,500.00 USD)',
+    status: 'SUCCESS',
+    risk_score: 85,
+    authenticator_name: 'MacBook Pro Touch ID Enclave',
+    device_info: 'Chrome 128 / macOS',
+    ip_address: '197.243.112.18 (Kigali, RW)',
+    timestamp: new Date(Date.now() - 3600000 * 4).toISOString()
+  },
+  {
+    id: 'sec_log_102',
+    event_type: 'PASSKEY_ENROLLED',
+    action_title: 'Enrolled Touch ID Passkey',
+    status: 'SUCCESS',
+    risk_score: 15,
+    authenticator_name: 'Apple Secure Enclave P-256',
+    device_info: 'Safari WebAuthn',
+    timestamp: new Date(Date.now() - 86400000 * 2).toISOString()
+  },
+  {
+    id: 'sec_log_103',
+    event_type: 'BIOMETRIC_AUTH_FAILED',
+    action_title: 'Unrecognized Device Step-Up Challenge',
+    status: 'FAILED',
+    risk_score: 92,
+    authenticator_name: 'Platform WebAuthn',
+    error_message: 'User cancelled biometric prompt or sensor timeout',
+    ip_address: '102.220.12.99',
+    timestamp: new Date(Date.now() - 86400000 * 4).toISOString()
+  }
+];
+
+export const INITIAL_PRICE_ALERTS: PriceAlert[] = [
+  {
+    id: 'alt_001',
+    assetSymbol: 'BTC',
+    targetPriceUsd: 95000,
+    condition: 'ABOVE',
+    notificationType: 'SMS',
+    phoneNumberOrEmail: '0780455033',
+    note: 'Alert when Bitcoin breaks $95k resistance',
+    isEnabled: true,
+    isTriggered: false,
+    createdAt: new Date(Date.now() - 86400000 * 3).toISOString()
+  },
+  {
+    id: 'alt_002',
+    assetSymbol: 'USDT',
+    targetPriceUsd: 0.995,
+    condition: 'BELOW',
+    notificationType: 'PUSH',
+    phoneNumberOrEmail: 'bahatipeterbrumbruce@gmail.com',
+    note: 'De-peg safety guard alert for Tether',
+    isEnabled: true,
+    isTriggered: false,
+    createdAt: new Date(Date.now() - 86400000 * 5).toISOString()
+  },
+  {
+    id: 'alt_003',
+    assetSymbol: 'ETH',
+    targetPriceUsd: 3600,
+    condition: 'ABOVE',
+    notificationType: 'IN_APP',
+    note: 'Ethereum breakout target',
+    isEnabled: true,
+    isTriggered: true,
+    createdAt: new Date(Date.now() - 86400000 * 7).toISOString(),
+    lastTriggeredAt: new Date(Date.now() - 3600000 * 2).toISOString()
+  }
+];
 
 export const INITIAL_ASSETS: Asset[] = [
   {
@@ -899,3 +976,59 @@ export const INITIAL_SERVICES: SystemServiceStatus[] = [
 
 export const INITIAL_LEDGER_ENTRIES = INITIAL_LEDGER;
 export const INITIAL_B2B_MERCHANT = INITIAL_MERCHANT;
+
+export const INITIAL_QUICK_RECIPIENTS: QuickRecipient[] = [
+  {
+    id: 'qr_001',
+    name: 'Claudine Umutoni',
+    category: 'MOBILE_MONEY',
+    addressOrPhone: '0788123456',
+    assetSymbol: 'RWF',
+    defaultAmount: 25000,
+    isFavorite: true,
+    lastSentAt: '2026-09-08T14:20:00Z'
+  },
+  {
+    id: 'qr_002',
+    name: 'David K. (Kofi Treasury)',
+    category: 'CRYPTO_WALLET',
+    addressOrPhone: '0x71C7656EC7ab88b098defB751B7401B5f6d8976F',
+    assetSymbol: 'USDT',
+    defaultAmount: 150,
+    network: 'TRON (TRC-20)',
+    isFavorite: true,
+    lastSentAt: '2026-09-09T09:15:00Z'
+  },
+  {
+    id: 'qr_003',
+    name: 'Keza Alice',
+    category: 'MOBILE_MONEY',
+    addressOrPhone: '0790987654',
+    assetSymbol: 'RWF',
+    defaultAmount: 10000,
+    isFavorite: true,
+    lastSentAt: '2026-09-05T18:40:00Z'
+  },
+  {
+    id: 'qr_004',
+    name: 'Kigali Tech Supplies',
+    category: 'MOBILE_MONEY',
+    addressOrPhone: '95120',
+    assetSymbol: 'RWF',
+    defaultAmount: 50000,
+    isFavorite: false,
+    lastSentAt: '2026-08-30T11:00:00Z'
+  },
+  {
+    id: 'qr_005',
+    name: 'Alex Rivera',
+    category: 'CRYPTO_WALLET',
+    addressOrPhone: 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh',
+    assetSymbol: 'BTC',
+    defaultAmount: 0.002,
+    network: 'BITCOIN_NATIVE_SEGWIT',
+    isFavorite: false,
+    lastSentAt: '2026-09-01T16:00:00Z'
+  }
+];
+

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   X,
   Send,
@@ -15,10 +15,12 @@ import {
   Download,
   Share2,
   DollarSign,
-  Info
+  Info,
+  Camera,
+  UserCheck
 } from 'lucide-react';
 import { QRCodeSVG, QRCodeCanvas } from 'qrcode.react';
-import { Asset, WalletAccount, ExternalWallet } from '../types';
+import { Asset, WalletAccount, ExternalWallet, QuickRecipient } from '../types';
 
 interface ActionModalsProps {
   modalType: 'SEND' | 'RECEIVE' | 'DEPOSIT' | 'WITHDRAW' | 'CONNECT_WALLET' | null;
@@ -26,10 +28,14 @@ interface ActionModalsProps {
   assets: Asset[];
   wallets: WalletAccount[];
   externalWallets?: ExternalWallet[];
+  quickRecipients?: QuickRecipient[];
   initialSymbol?: string;
+  initialRecipient?: string;
+  initialAmount?: string;
   onExecuteSend: (symbol: string, recipient: string, amount: number) => Promise<void>;
   onExecuteWithdraw: (symbol: string, destination: string, amount: number) => Promise<void>;
   onConnectExternalWallet: (type: ExternalWallet['type']) => void;
+  onOpenQrScanner?: () => void;
 }
 
 export const ActionModals: React.FC<ActionModalsProps> = ({
@@ -38,18 +44,30 @@ export const ActionModals: React.FC<ActionModalsProps> = ({
   assets,
   wallets,
   externalWallets = [],
+  quickRecipients = [],
   initialSymbol = 'USDT',
+  initialRecipient = '',
+  initialAmount = '',
   onExecuteSend,
   onExecuteWithdraw,
-  onConnectExternalWallet
+  onConnectExternalWallet,
+  onOpenQrScanner
 }) => {
   const [selectedSymbol, setSelectedSymbol] = useState<string>(initialSymbol);
-  const [recipient, setRecipient] = useState<string>('');
-  const [amount, setAmount] = useState<string>('');
+  const [recipient, setRecipient] = useState<string>(initialRecipient);
+  const [amount, setAmount] = useState<string>(initialAmount);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [copied, setCopied] = useState<boolean>(false);
   const [copiedUri, setCopiedUri] = useState<boolean>(false);
   const [walletSearch, setWalletSearch] = useState<string>('');
+
+  useEffect(() => {
+    if (modalType) {
+      if (initialSymbol) setSelectedSymbol(initialSymbol);
+      if (initialRecipient) setRecipient(initialRecipient);
+      if (initialAmount) setAmount(initialAmount);
+    }
+  }, [modalType, initialSymbol, initialRecipient, initialAmount]);
 
   // Receive modal custom amount & note state
   const [receiveAmount, setReceiveAmount] = useState<string>('');
@@ -190,6 +208,39 @@ export const ActionModals: React.FC<ActionModalsProps> = ({
             </div>
 
             <form onSubmit={handleSendSubmit} className="space-y-4 text-xs">
+              {/* Quick Select Saved Frequent Recipients */}
+              {quickRecipients.length > 0 && (
+                <div>
+                  <div className="flex items-center justify-between text-[11px] mb-1.5">
+                    <span className="text-slate-300 font-bold flex items-center gap-1">
+                      <UserCheck className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Quick Select Saved Contact</span>
+                    </span>
+                    <span className="text-[10px] text-amber-400 font-semibold">1-Click Auto-Fill</span>
+                  </div>
+                  <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin">
+                    {quickRecipients.map((rec) => (
+                      <button
+                        key={rec.id}
+                        type="button"
+                        onClick={() => {
+                          setRecipient(rec.addressOrPhone);
+                          setSelectedSymbol(rec.assetSymbol);
+                          if (rec.defaultAmount) setAmount(rec.defaultAmount.toString());
+                        }}
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-950 hover:bg-amber-500/10 border border-slate-800 hover:border-amber-500/40 rounded-xl text-slate-200 hover:text-white transition-all cursor-pointer shrink-0"
+                      >
+                        <div className="w-5 h-5 rounded-full bg-amber-500/20 text-amber-300 flex items-center justify-center font-bold text-[9px]">
+                          {rec.name.substring(0, 1)}
+                        </div>
+                        <span className="text-xs font-bold">{rec.name.split(' ')[0]}</span>
+                        <span className="text-[10px] text-slate-400 font-mono">({rec.assetSymbol})</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label className="block text-slate-300 font-semibold mb-1">Select Asset</label>
                 <select
@@ -212,17 +263,41 @@ export const ActionModals: React.FC<ActionModalsProps> = ({
               </div>
 
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">
-                  Recipient Address, Phone, or Kofi ID
-                </label>
-                <input
-                  type="text"
-                  value={recipient}
-                  onChange={(e) => setRecipient(e.target.value)}
-                  placeholder="0788123456 or 0x71c9... or user@kofi"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-white font-mono focus:outline-none focus:border-amber-500"
-                  required
-                />
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-slate-300 font-semibold">
+                    Recipient Address, Phone, or Kofi ID
+                  </label>
+                  {onOpenQrScanner && (
+                    <button
+                      type="button"
+                      onClick={onOpenQrScanner}
+                      className="text-amber-400 hover:text-amber-300 text-[11px] font-bold flex items-center gap-1 cursor-pointer"
+                    >
+                      <Camera className="w-3.5 h-3.5" />
+                      <span>Scan QR Code</span>
+                    </button>
+                  )}
+                </div>
+                <div className="relative flex items-center">
+                  <input
+                    type="text"
+                    value={recipient}
+                    onChange={(e) => setRecipient(e.target.value)}
+                    placeholder="0788123456 or 0x71c9... or user@kofi"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-3 pr-10 py-2.5 text-white font-mono focus:outline-none focus:border-amber-500"
+                    required
+                  />
+                  {onOpenQrScanner && (
+                    <button
+                      type="button"
+                      onClick={onOpenQrScanner}
+                      className="absolute right-2.5 text-slate-400 hover:text-amber-400 p-1 cursor-pointer"
+                      title="Open camera to scan QR code"
+                    >
+                      <Camera className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div>
@@ -504,17 +579,41 @@ export const ActionModals: React.FC<ActionModalsProps> = ({
               </div>
 
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">
-                  Destination (Phone Number or External Crypto Address)
-                </label>
-                <input
-                  type="text"
-                  value={recipient}
-                  onChange={(e) => setRecipient(e.target.value)}
-                  placeholder="0788998877 or 0x71c9..."
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-amber-500"
-                  required
-                />
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-slate-300 font-semibold">
+                    Destination (Phone Number or External Crypto Address)
+                  </label>
+                  {onOpenQrScanner && (
+                    <button
+                      type="button"
+                      onClick={onOpenQrScanner}
+                      className="text-amber-400 hover:text-amber-300 text-[11px] font-bold flex items-center gap-1 cursor-pointer"
+                    >
+                      <Camera className="w-3.5 h-3.5" />
+                      <span>Scan QR Code</span>
+                    </button>
+                  )}
+                </div>
+                <div className="relative flex items-center">
+                  <input
+                    type="text"
+                    value={recipient}
+                    onChange={(e) => setRecipient(e.target.value)}
+                    placeholder="0788998877 or 0x71c9..."
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-3 pr-10 py-2 text-white font-mono focus:outline-none focus:border-amber-500"
+                    required
+                  />
+                  {onOpenQrScanner && (
+                    <button
+                      type="button"
+                      onClick={onOpenQrScanner}
+                      className="absolute right-2.5 text-slate-400 hover:text-amber-400 p-1 cursor-pointer"
+                      title="Open camera to scan QR code"
+                    >
+                      <Camera className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div>

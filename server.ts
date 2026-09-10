@@ -13,7 +13,7 @@ async function startServer() {
   app.use(express.urlencoded({ extended: true }));
   app.use(express.json());
 
-  // CORS middleware for Netlify & cross-origin proxying
+  // CORS middleware for cross-origin proxying
   app.use((req, res, next) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
@@ -22,19 +22,6 @@ async function startServer() {
       return res.sendStatus(200);
     }
     next();
-  });
-
-  // Supabase Integration Health Endpoint
-  app.get("/api/supabase/status", (req, res) => {
-    const supabaseUrl = process.env.SUPABASE_URL || "https://bxpjxnxcbetlbuulbuus.supabase.co";
-    const projectRef = "bxpjxnxcbetlbuulbuus";
-    res.json({
-      status: "connected",
-      project_ref: projectRef,
-      supabase_url: supabaseUrl,
-      mcp_server: "https://mcp.supabase.com/mcp?project_ref=bxpjxnxcbetlbuulbuus",
-      timestamp: new Date().toISOString()
-    });
   });
 
   // Spark Wallet SDK Endpoints

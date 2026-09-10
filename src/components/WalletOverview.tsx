@@ -1,15 +1,5 @@
 import React, { useState } from 'react';
 import {
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-  Legend
-} from 'recharts';
-import {
   Wallet,
   ArrowUpRight,
   ArrowDownLeft,
@@ -17,15 +7,90 @@ import {
   QrCode,
   Plus,
   Shield,
-  ExternalLink,
   CheckCircle,
   Clock,
   Coins,
   CreditCard,
   Layers,
-  ChevronRight
+  ChevronRight,
+  Camera,
+  Zap,
+  Bell,
+  BellRing,
+  Trash2,
+  TrendingUp,
+  TrendingDown,
+  Sparkles,
+  Smartphone,
+  Mail,
+  AlertTriangle,
+  Play
 } from 'lucide-react';
-import { Asset, WalletAccount, Transaction, ExternalWallet, LedgerEntry } from '../types';
+import { Asset, WalletAccount, Transaction, ExternalWallet, LedgerEntry, QuickRecipient, PriceAlert } from '../types';
+import { EmptyState } from './EmptyState';
+import { QuickSendWidget } from './QuickSendWidget';
+import { BalanceTrendChart } from './BalanceTrendChart';
+
+interface Ripple {
+  x: number;
+  y: number;
+  size: number;
+  id: number;
+}
+
+const RippleButton: React.FC<{
+  onClick?: () => void;
+  className?: string;
+  children: React.ReactNode;
+  title?: string;
+  rippleColor?: string;
+}> = ({ onClick, className = '', children, title, rippleColor = 'bg-white/35' }) => {
+  const [ripples, setRipples] = useState<Ripple[]>([]);
+
+  const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const size = Math.max(rect.width, rect.height) * 2;
+    const x = e.clientX - rect.left - size / 2;
+    const y = e.clientY - rect.top - size / 2;
+
+    const newRipple: Ripple = {
+      x,
+      y,
+      size,
+      id: Date.now() + Math.random(),
+    };
+
+    setRipples((prev) => [...prev, newRipple]);
+    if (onClick) onClick();
+  };
+
+  const removeRipple = (id: number) => {
+    setRipples((prev) => prev.filter((r) => r.id !== id));
+  };
+
+  return (
+    <button
+      onClick={handleClick}
+      title={title}
+      className={`relative overflow-hidden cursor-pointer transition-transform active:scale-95 ${className}`}
+    >
+      {ripples.map((ripple) => (
+        <span
+          key={ripple.id}
+          onAnimationEnd={() => removeRipple(ripple.id)}
+          className={`absolute rounded-full pointer-events-none animate-ripple ${rippleColor}`}
+          style={{
+            top: ripple.y,
+            left: ripple.x,
+            width: ripple.size,
+            height: ripple.size,
+          }}
+        />
+      ))}
+      <span className="relative z-10 flex items-center gap-1.5">{children}</span>
+    </button>
+  );
+};
 
 interface WalletOverviewProps {
   wallets: WalletAccount[];
@@ -33,13 +98,56 @@ interface WalletOverviewProps {
   transactions: Transaction[];
   ledgerEntries: LedgerEntry[];
   externalWallets: ExternalWallet[];
+  quickRecipients: QuickRecipient[];
+  priceAlerts: PriceAlert[];
   onOpenSend: (symbol?: string) => void;
   onOpenReceive: (symbol?: string) => void;
   onOpenDeposit: (symbol?: string) => void;
   onOpenWithdraw: (symbol?: string) => void;
-  onOpenSwap: (sourceSymbol?: string) => void;
+  onOpenSwap?: (sourceSymbol?: string) => void;
   onOpenConnectWallet: () => void;
   onSelectTab: (tab: string) => void;
+  onOpenQrScanner: () => void;
+  onSelectRecipientToSend: (recipient: QuickRecipient) => void;
+  onAddQuickRecipient: (newRecipient: Omit<QuickRecipient, 'id'>) => void;
+  onDeleteQuickRecipient: (id: string) => void;
+  onToggleQuickFavorite: (id: string) => void;
+  onOpenCreatePriceAlert: (symbol?: string) => void;
+  onTogglePriceAlert: (id: string) => void;
+  onDeletePriceAlert: (id: string) => void;
+  onSimulateTriggerAlert: (id: string) => void;
+}
+
+export type SecondaryCurrencyCode = 'EUR' | 'GBP' | 'KES';
+
+/**
+ * Helper function to calculate and format total portfolio value in a selected secondary currency
+ */
+export function formatSecondaryCurrencyValue(
+  totalUsd: number,
+  currency: SecondaryCurrencyCode,
+  assets: Asset[]
+): { value: string; symbol: string; label: string; rate: number } {
+  const rates: Record<SecondaryCurrencyCode, { rate: number; symbol: string; label: string }> = {
+    EUR: { rate: 0.92, symbol: '€', label: 'Euros' },
+    GBP: { rate: 0.78, symbol: '£', label: 'Pounds' },
+    KES: { rate: 129.5, symbol: 'KSh', label: 'Kenyan Shillings' }
+  };
+
+  const config = rates[currency] || rates.EUR;
+  const converted = totalUsd * config.rate;
+
+  const formatted =
+    currency === 'EUR' || currency === 'GBP'
+      ? `${config.symbol}${converted.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      : `${config.symbol} ${Math.round(converted).toLocaleString()}`;
+
+  return {
+    value: formatted,
+    symbol: config.symbol,
+    label: config.label,
+    rate: config.rate
+  };
 }
 
 export const WalletOverview: React.FC<WalletOverviewProps> = ({
@@ -48,15 +156,27 @@ export const WalletOverview: React.FC<WalletOverviewProps> = ({
   transactions,
   ledgerEntries,
   externalWallets,
+  quickRecipients,
+  priceAlerts = [],
   onOpenSend,
   onOpenReceive,
   onOpenDeposit,
   onOpenWithdraw,
   onOpenSwap,
   onOpenConnectWallet,
-  onSelectTab
+  onSelectTab,
+  onOpenQrScanner,
+  onSelectRecipientToSend,
+  onAddQuickRecipient,
+  onDeleteQuickRecipient,
+  onToggleQuickFavorite,
+  onOpenCreatePriceAlert,
+  onTogglePriceAlert,
+  onDeletePriceAlert,
+  onSimulateTriggerAlert
 }) => {
-  const [activeMetric, setActiveMetric] = useState<'ALL' | 'totalUsd' | 'BTC' | 'USDT'>('ALL');
+  const [overviewSubTab, setOverviewSubTab] = useState<'ASSETS' | 'ALERTS' | 'LEDGER'>('ASSETS');
+  const [secondaryCurrency, setSecondaryCurrency] = useState<SecondaryCurrencyCode>('EUR');
 
   // Calculate total net worth in USD
   const totalUsd = wallets.reduce((acc, w) => {
@@ -68,77 +188,8 @@ export const WalletOverview: React.FC<WalletOverviewProps> = ({
   // RWF equivalent (~1380 RWF per USD)
   const totalRwf = totalUsd / (assets.find((a) => a.symbol === 'RWF')?.current_price_usd || 0.00072);
 
-  const fiatWallets = wallets.filter((w) => {
-    const asset = assets.find((a) => a.symbol === w.symbol);
-    return asset?.type === 'FIAT';
-  });
-
-  const stableWallets = wallets.filter((w) => {
-    const asset = assets.find((a) => a.symbol === w.symbol);
-    return asset?.type === 'STABLECOIN';
-  });
-
-  const cryptoWallets = wallets.filter((w) => {
-    const asset = assets.find((a) => a.symbol === w.symbol);
-    return asset?.type === 'CRYPTO';
-  });
-
-  // 7-Day historical performance chart data derived from ledger entries
-  const chartData = React.useMemo(() => {
-    const days = 7;
-    const result = [];
-    const now = Date.now();
-    const dayMs = 86400000;
-
-    const currentBalances: Record<string, number> = {};
-    wallets.forEach(w => {
-      currentBalances[w.symbol] = w.balance;
-    });
-
-    const sortedEntries = [...ledgerEntries].sort(
-      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-    );
-
-    for (let i = days - 1; i >= 0; i--) {
-      const targetTime = now - i * dayMs;
-      const dateLabel = new Date(targetTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-
-      const snapshotBalances = { ...currentBalances };
-      
-      sortedEntries.forEach(entry => {
-        const entryTime = new Date(entry.created_at).getTime();
-        if (entryTime > targetTime) {
-          if (entry.credit_account_name.includes('Customer') || entry.credit_account_name.includes('Wallet') || entry.credit_account_name.includes('User')) {
-            snapshotBalances[entry.asset_symbol] = (snapshotBalances[entry.asset_symbol] || 0) - entry.amount;
-          }
-          if (entry.debit_account_name.includes('Customer') || entry.debit_account_name.includes('Wallet') || entry.debit_account_name.includes('User')) {
-            snapshotBalances[entry.asset_symbol] = (snapshotBalances[entry.asset_symbol] || 0) + entry.amount;
-          }
-        }
-      });
-
-      let totalUsdSnapshot = 0;
-      wallets.forEach(w => {
-        const asset = assets.find(a => a.symbol === w.symbol);
-        const price = asset ? asset.current_price_usd : 1;
-        const bal = Math.max(0, snapshotBalances[w.symbol] ?? w.balance);
-        totalUsdSnapshot += bal * price;
-      });
-
-      const btcPrice = assets.find(a => a.symbol === 'BTC')?.current_price_usd || 95000;
-      const btcUsd = Math.max(0, snapshotBalances['BTC'] || 0) * btcPrice;
-      const usdtUsd = Math.max(0, snapshotBalances['USDT'] || 0) * (assets.find(a => a.symbol === 'USDT')?.current_price_usd || 1);
-
-      result.push({
-        date: dateLabel,
-        totalUsd: Math.round(totalUsdSnapshot * 100) / 100,
-        BTC: Math.round(btcUsd * 100) / 100,
-        USDT: Math.round(usdtUsd * 100) / 100
-      });
-    }
-
-    return result;
-  }, [ledgerEntries, wallets, assets]);
+  // Secondary currency helper execution
+  const secondaryFx = formatSecondaryCurrencyValue(totalUsd, secondaryCurrency, assets);
 
   return (
     <div className="space-y-6">
@@ -156,6 +207,7 @@ export const WalletOverview: React.FC<WalletOverviewProps> = ({
                 Audited by Rust Ledger
               </span>
             </div>
+
             <div className="flex items-baseline gap-3 flex-wrap">
               <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
                 ${totalUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -163,6 +215,30 @@ export const WalletOverview: React.FC<WalletOverviewProps> = ({
               <span className="text-sm font-medium text-slate-400">
                 ≈ {Math.round(totalRwf).toLocaleString()} RWF
               </span>
+
+              {/* Secondary Currency Togglable Badge */}
+              <div className="inline-flex items-center gap-1 bg-slate-950/80 border border-slate-800 rounded-xl p-1 text-xs">
+                <span className="font-mono font-bold text-sky-400 px-1.5 py-0.5">
+                  ≈ {secondaryFx.value}
+                </span>
+
+                <div className="flex items-center gap-0.5 border-l border-slate-800 pl-1">
+                  {(['EUR', 'GBP', 'KES'] as SecondaryCurrencyCode[]).map((code) => (
+                    <button
+                      key={code}
+                      onClick={() => setSecondaryCurrency(code)}
+                      className={`px-1.5 py-0.5 text-[10px] font-mono font-bold rounded transition-colors cursor-pointer ${
+                        secondaryCurrency === code
+                          ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                          : 'text-slate-500 hover:text-slate-300'
+                      }`}
+                      title={`Display in ${code}`}
+                    >
+                      {code}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
             <p className="text-xs text-slate-400 mt-2 flex items-center gap-1.5">
               <Shield className="w-3.5 h-3.5 text-amber-400 inline" />
@@ -172,282 +248,327 @@ export const WalletOverview: React.FC<WalletOverviewProps> = ({
 
           {/* Quick Action Button Bar */}
           <div className="flex items-center gap-2 flex-wrap">
-            <button
+            <RippleButton
               onClick={() => onOpenDeposit()}
-              className="flex items-center gap-1.5 px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-amber-500/10 transition-all cursor-pointer"
+              rippleColor="bg-slate-950/40"
+              className="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-amber-500/10"
             >
               <Plus className="w-4 h-4" />
               <span>Deposit (MoMo / Crypto)</span>
-            </button>
-            <button
+            </RippleButton>
+            <RippleButton
               onClick={() => onOpenWithdraw()}
-              className="flex items-center gap-1.5 px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-100 font-semibold text-xs rounded-xl border border-slate-700 transition-all cursor-pointer"
+              className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-100 font-semibold text-xs rounded-xl border border-slate-700"
             >
               <ArrowUpRight className="w-4 h-4 text-slate-300" />
               <span>Withdraw</span>
-            </button>
-            <button
+            </RippleButton>
+            <RippleButton
               onClick={() => onOpenSend()}
-              className="flex items-center gap-1.5 px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-100 font-semibold text-xs rounded-xl border border-slate-700 transition-all cursor-pointer"
+              className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-100 font-semibold text-xs rounded-xl border border-slate-700"
             >
               <ArrowDownLeft className="w-4 h-4 text-emerald-400" />
               <span>Send</span>
-            </button>
-            <button
+            </RippleButton>
+            <RippleButton
+              onClick={() => onOpenQrScanner()}
+              className="px-3.5 py-2.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 font-bold text-xs rounded-xl border border-emerald-500/30 shadow-lg shadow-emerald-500/5"
+              title="Open camera to scan QR codes"
+            >
+              <Camera className="w-4 h-4 text-emerald-400" />
+              <span>Scan QR Code</span>
+            </RippleButton>
+            <RippleButton
               onClick={() => onOpenReceive()}
-              className="flex items-center gap-1.5 px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-100 font-semibold text-xs rounded-xl border border-slate-700 transition-all cursor-pointer"
+              className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-100 font-semibold text-xs rounded-xl border border-slate-700"
             >
               <QrCode className="w-4 h-4 text-amber-400" />
               <span>Receive / QR</span>
-            </button>
-            <button
-              onClick={() => onOpenSwap()}
-              className="flex items-center gap-1.5 px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-100 font-semibold text-xs rounded-xl border border-slate-700 transition-all cursor-pointer"
+            </RippleButton>
+            <RippleButton
+              onClick={() => (onOpenSwap ? onOpenSwap() : onSelectTab('exchange'))}
+              className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-100 font-semibold text-xs rounded-xl border border-slate-700"
             >
               <ArrowLeftRight className="w-4 h-4 text-sky-400" />
               <span>Swap / FX</span>
-            </button>
+            </RippleButton>
           </div>
         </div>
       </div>
 
-      {/* 7-Day Performance Line Chart */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
-          <div>
-            <h3 className="font-bold text-white text-sm flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-amber-400"></span>
-              7-Day Asset & Portfolio Performance History
-            </h3>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Historical valuation calculated dynamically from double-entry ledger transactions
-            </p>
-          </div>
-          <div className="flex items-center gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800">
-            {[
-              { id: 'ALL', label: 'All Assets' },
-              { id: 'totalUsd', label: 'Total Portfolio' },
-              { id: 'BTC', label: 'Bitcoin' },
-              { id: 'USDT', label: 'USDT' }
-            ].map((btn) => (
-              <button
-                key={btn.id}
-                onClick={() => setActiveMetric(btn.id as any)}
-                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
-                  activeMetric === btn.id
-                    ? 'bg-amber-500 text-slate-950 font-bold'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                {btn.label}
-              </button>
-            ))}
-          </div>
+      {/* 30-Day Wallet Balance History Line Chart (Recharts) */}
+      <BalanceTrendChart wallets={wallets} assets={assets} />
+
+      {/* Quick Send Frequent Recipients Widget */}
+      <QuickSendWidget
+        recipients={quickRecipients}
+        assets={assets}
+        onSelectRecipientToSend={onSelectRecipientToSend}
+        onAddRecipient={onAddQuickRecipient}
+        onDeleteRecipient={onDeleteQuickRecipient}
+        onToggleFavorite={onToggleQuickFavorite}
+      />
+
+      {/* Sub-Navigation Bar inside Wallet Overview */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => setOverviewSubTab('ASSETS')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+              overviewSubTab === 'ASSETS'
+                ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30 shadow-md shadow-amber-500/5'
+                : 'text-slate-400 hover:text-white bg-slate-900 border border-slate-800'
+            }`}
+          >
+            <Wallet className="w-4 h-4" />
+            <span>Asset Balances & Web3</span>
+          </button>
+
+          <button
+            onClick={() => setOverviewSubTab('ALERTS')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+              overviewSubTab === 'ALERTS'
+                ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30 shadow-md shadow-amber-500/5'
+                : 'text-slate-400 hover:text-white bg-slate-900 border border-slate-800'
+            }`}
+          >
+            <Bell className="w-4 h-4 text-amber-400" />
+            <span>Price Threshold Alerts</span>
+            <span className="px-1.5 py-0.2 bg-amber-500/20 text-amber-300 text-[10px] font-mono rounded-full font-bold">
+              {priceAlerts.length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setOverviewSubTab('LEDGER')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+              overviewSubTab === 'LEDGER'
+                ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30 shadow-md shadow-amber-500/5'
+                : 'text-slate-400 hover:text-white bg-slate-900 border border-slate-800'
+            }`}
+          >
+            <Clock className="w-4 h-4 text-sky-400" />
+            <span>Ledger Activity</span>
+          </button>
         </div>
 
-        <div className="h-64 w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-              <XAxis dataKey="date" stroke="#64748b" tick={{ fontSize: 11 }} />
-              <YAxis stroke="#64748b" tick={{ fontSize: 11 }} tickFormatter={(val) => `$${val >= 1000 ? (val / 1000).toFixed(0) + 'k' : val}`} />
-              <Tooltip
-                contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '0.75rem', fontSize: '12px', color: '#fff' }}
-                formatter={(value: any) => [`$${Number(value).toLocaleString('en-US', { minimumFractionDigits: 2 })}`, '']}
-              />
-              <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} />
-              {(activeMetric === 'ALL' || activeMetric === 'totalUsd') && (
-                <Line type="monotone" dataKey="totalUsd" name="Total Portfolio (USD)" stroke="#f59e0b" strokeWidth={2.5} dot={{ r: 4, fill: '#f59e0b' }} activeDot={{ r: 6 }} />
-              )}
-              {(activeMetric === 'ALL' || activeMetric === 'BTC') && (
-                <Line type="monotone" dataKey="BTC" name="Bitcoin (BTC)" stroke="#38bdf8" strokeWidth={2} dot={{ r: 3, fill: '#38bdf8' }} />
-              )}
-              {(activeMetric === 'ALL' || activeMetric === 'USDT') && (
-                <Line type="monotone" dataKey="USDT" name="Tether (USDT)" stroke="#34d399" strokeWidth={2} dot={{ r: 3, fill: '#34d399' }} />
-              )}
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
+        {overviewSubTab === 'ALERTS' && (
+          <button
+            onClick={() => onOpenCreatePriceAlert()}
+            className="px-3.5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-amber-500/20 flex items-center gap-1.5 cursor-pointer transition-all shrink-0"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Set New Price Alert</span>
+          </button>
+        )}
       </div>
 
-      {/* Asset Categories Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* 1. Mobile Money & Fiat Wallets */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
-                <CreditCard className="w-4 h-4" />
+      {/* VIEW 1: PRICE THRESHOLD ALERTS MANAGER TAB */}
+      {overviewSubTab === 'ALERTS' && (
+        <div className="space-y-4">
+          {/* Summary Metrics Banner */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex items-center justify-between">
+              <div>
+                <span className="text-slate-400 text-xs font-medium">Configured Alert Rules</span>
+                <div className="text-xl font-bold text-white font-mono mt-0.5">{priceAlerts.length}</div>
               </div>
-              <h3 className="font-bold text-white text-sm">Mobile Money & Fiat</h3>
+              <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-400">
+                <Bell className="w-5 h-5" />
+              </div>
             </div>
-            <span className="text-xs text-slate-400">{fiatWallets.length} Accounts</span>
-          </div>
 
-          <div className="space-y-3">
-            {fiatWallets.map((w) => {
-              const asset = assets.find((a) => a.symbol === w.symbol);
-              const valUsd = w.balance * (asset?.current_price_usd || 0);
-              return (
-                <div
-                  key={w.account_id}
-                  className="bg-slate-950/70 border border-slate-800 hover:border-slate-700 p-3.5 rounded-xl flex items-center justify-between transition-colors group"
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">{asset?.icon}</span>
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-bold text-slate-100 text-sm">{w.symbol}</span>
-                        <span className="text-[11px] text-slate-400">({asset?.name})</span>
-                      </div>
-                      <p className="text-[11px] text-slate-400 font-mono truncate max-w-[140px]">
-                        {w.address}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="text-right">
-                      <div className="font-bold text-white text-sm">
-                        {w.symbol === 'RWF'
-                          ? w.balance.toLocaleString()
-                          : w.balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                      </div>
-                      <div className="text-[11px] text-slate-400">
-                        ≈ ${valUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => onOpenReceive(w.symbol)}
-                      title={`Show ${w.symbol} QR Code & Deposit Address`}
-                      className="p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-amber-400 hover:border-amber-500/40 transition-colors cursor-pointer"
-                    >
-                      <QrCode className="w-4 h-4" />
-                    </button>
-                  </div>
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex items-center justify-between">
+              <div>
+                <span className="text-slate-400 text-xs font-medium">Active Monitoring</span>
+                <div className="text-xl font-bold text-emerald-400 font-mono mt-0.5">
+                  {priceAlerts.filter((a) => a.isEnabled).length}
                 </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* 2. Stablecoins (USDT & USDC) */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <div className="p-2 rounded-lg bg-sky-500/10 text-sky-400">
-                <Coins className="w-4 h-4" />
               </div>
-              <h3 className="font-bold text-white text-sm">Stablecoins (1:1 USD)</h3>
+              <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-400">
+                <Zap className="w-5 h-5" />
+              </div>
             </div>
-            <span className="text-xs text-slate-400">{stableWallets.length} Wallets</span>
+
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex items-center justify-between">
+              <div>
+                <span className="text-slate-400 text-xs font-medium">Triggered Breaches</span>
+                <div className="text-xl font-bold text-rose-400 font-mono mt-0.5">
+                  {priceAlerts.filter((a) => a.isTriggered).length}
+                </div>
+              </div>
+              <div className="p-2.5 rounded-xl bg-rose-500/10 text-rose-400">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+            </div>
           </div>
 
-          <div className="space-y-3">
-            {stableWallets.map((w) => {
-              const asset = assets.find((a) => a.symbol === w.symbol);
-              const valUsd = w.balance * (asset?.current_price_usd || 1);
-              return (
-                <div
-                  key={w.account_id}
-                  className="bg-slate-950/70 border border-slate-800 hover:border-slate-700 p-3.5 rounded-xl flex items-center justify-between transition-colors group"
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">{asset?.icon}</span>
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-bold text-slate-100 text-sm">{w.symbol}</span>
-                        <span className="text-[10px] bg-sky-500/10 text-sky-400 px-1.5 py-0.5 rounded font-mono">
-                          {w.network}
+          {/* Price Alerts Card Grid */}
+          {priceAlerts.length === 0 ? (
+            <EmptyState
+              title="No Price Alerts Set"
+              description="Configure custom price threshold alerts for Bitcoin, USDT, Ethereum, or Rwandan Franc to get notified via SMS or Push whenever target levels are breached."
+              actionLabel="Create First Price Alert"
+              onAction={() => onOpenCreatePriceAlert()}
+              className="p-8 bg-slate-900/60 border border-slate-800 rounded-2xl"
+            />
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {priceAlerts.map((alert) => {
+                const asset = assets.find((a) => a.symbol === alert.assetSymbol);
+                const currentPrice = asset ? asset.current_price_usd : 0;
+                const priceDiffPct = currentPrice > 0
+                  ? (((alert.targetPriceUsd - currentPrice) / currentPrice) * 100).toFixed(2)
+                  : '0.00';
+
+                return (
+                  <div
+                    key={alert.id}
+                    className={`bg-slate-900 border rounded-2xl p-4 space-y-3 transition-all relative overflow-hidden ${
+                      alert.isTriggered
+                        ? 'border-rose-500/50 bg-rose-950/10 shadow-lg shadow-rose-500/5'
+                        : alert.isEnabled
+                        ? 'border-slate-800 hover:border-amber-500/40'
+                        : 'border-slate-800/60 opacity-60'
+                    }`}
+                  >
+                    {/* Header: Asset Icon & Action Buttons */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-10 h-10 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-center text-xl shadow-inner">
+                          {asset?.icon || '🪙'}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-extrabold text-white text-sm">{alert.assetSymbol}</span>
+                            <span
+                              className={`px-2 py-0.5 rounded-md text-[10px] font-bold font-mono border flex items-center gap-1 ${
+                                alert.condition === 'ABOVE'
+                                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                                  : 'bg-rose-500/10 text-rose-400 border-rose-500/30'
+                              }`}
+                            >
+                              {alert.condition === 'ABOVE' ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                              <span>{alert.condition === 'ABOVE' ? 'Rises Above (>)' : 'Drops Below (<)'}</span>
+                            </span>
+                          </div>
+                          <span className="text-[11px] text-slate-400">{asset?.name || alert.assetSymbol}</span>
+                        </div>
+                      </div>
+
+                      {/* Controls: Toggle & Delete */}
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => onSimulateTriggerAlert(alert.id)}
+                          className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-bold rounded-lg border border-slate-700 flex items-center gap-1 cursor-pointer"
+                          title="Simulate market price trigger"
+                        >
+                          <Play className="w-3 h-3 text-amber-400" />
+                          <span>Test</span>
+                        </button>
+                        <button
+                          onClick={() => onTogglePriceAlert(alert.id)}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-colors cursor-pointer ${
+                            alert.isEnabled
+                              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                              : 'bg-slate-800 text-slate-400 border-slate-700'
+                          }`}
+                        >
+                          {alert.isEnabled ? 'ON' : 'OFF'}
+                        </button>
+                        <button
+                          onClick={() => onDeletePriceAlert(alert.id)}
+                          className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer"
+                          title="Delete Price Alert"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Target Price vs Current Price Display */}
+                    <div className="bg-slate-950/80 p-3 rounded-xl border border-slate-800/80 flex items-center justify-between text-xs">
+                      <div>
+                        <span className="text-[10px] text-slate-500 uppercase font-semibold block">Target Threshold</span>
+                        <span className="font-mono text-base font-extrabold text-amber-400">
+                          ${alert.targetPriceUsd.toLocaleString()}
                         </span>
                       </div>
-                      <p className="text-[11px] text-slate-400 font-mono truncate max-w-[130px]" title={w.address}>
-                        {w.address?.substring(0, 8)}...{w.address?.substring((w.address?.length || 10) - 6)}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="text-right">
-                      <div className="font-bold text-white text-sm">
-                        {w.balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </div>
-                      <div className="text-[11px] text-slate-400">
-                        ≈ ${valUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => onOpenReceive(w.symbol)}
-                      title={`Show ${w.symbol} QR Code & Deposit Address`}
-                      className="p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-amber-400 hover:border-amber-500/40 transition-colors cursor-pointer"
-                    >
-                      <QrCode className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* 3. Cryptocurrencies (BTC & ETH) */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <div className="p-2 rounded-lg bg-amber-500/10 text-amber-400">
-                <Wallet className="w-4 h-4" />
-              </div>
-              <h3 className="font-bold text-white text-sm">Native Cryptocurrency</h3>
-            </div>
-            <span className="text-xs text-slate-400">{cryptoWallets.length} Assets</span>
-          </div>
-
-          <div className="space-y-3">
-            {cryptoWallets.map((w) => {
-              const asset = assets.find((a) => a.symbol === w.symbol);
-              const valUsd = w.balance * (asset?.current_price_usd || 0);
-              return (
-                <div
-                  key={w.account_id}
-                  className="bg-slate-950/70 border border-slate-800 hover:border-slate-700 p-3.5 rounded-xl flex items-center justify-between transition-colors group"
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">{asset?.icon}</span>
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-bold text-slate-100 text-sm">{w.symbol}</span>
-                        <span className="text-[10px] text-emerald-400 font-semibold">
-                          ${asset?.current_price_usd.toLocaleString()}
+                      <div className="text-right">
+                        <span className="text-[10px] text-slate-500 uppercase font-semibold block">Live Price</span>
+                        <span className="font-mono text-sm font-bold text-white">
+                          ${currentPrice.toLocaleString()}
                         </span>
                       </div>
-                      <p className="text-[11px] text-slate-400 font-mono truncate max-w-[130px]" title={w.address}>
-                        {w.address?.substring(0, 8)}...{w.address?.substring((w.address?.length || 10) - 6)}
-                      </p>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="text-right">
-                      <div className="font-bold text-white text-sm font-mono">
-                        {w.balance.toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 6 })}
-                      </div>
-                      <div className="text-[11px] text-slate-400">
-                        ≈ ${valUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => onOpenReceive(w.symbol)}
-                      title={`Show ${w.symbol} QR Code & Deposit Address`}
-                      className="p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-amber-400 hover:border-amber-500/40 transition-colors cursor-pointer"
-                    >
-                      <QrCode className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
 
-      {/* Non-Custodial External Wallets Section */}
+                    {/* Distance Proximity Indicator */}
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-[10px] text-slate-400 font-mono">
+                        <span>Distance to trigger</span>
+                        <span className={parseFloat(priceDiffPct) >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                          {parseFloat(priceDiffPct) >= 0 ? `+${priceDiffPct}%` : `${priceDiffPct}%`}
+                        </span>
+                      </div>
+                      <div className="w-full h-1.5 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
+                        <div
+                          className={`h-full rounded-full transition-all ${
+                            alert.isTriggered
+                              ? 'bg-rose-500'
+                              : alert.condition === 'ABOVE'
+                              ? 'bg-emerald-500'
+                              : 'bg-amber-500'
+                          }`}
+                          style={{
+                            width: `${Math.min(100, Math.max(10, 100 - Math.abs(parseFloat(priceDiffPct))))}%`
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Footer: Notification Channel & Trigger Timestamp */}
+                    <div className="flex items-center justify-between pt-1 text-[11px] text-slate-400 border-t border-slate-800/60">
+                      <div className="flex items-center gap-1.5 font-semibold text-slate-300">
+                        {alert.notificationType === 'SMS' && <Smartphone className="w-3.5 h-3.5 text-amber-400" />}
+                        {alert.notificationType === 'EMAIL' && <Mail className="w-3.5 h-3.5 text-sky-400" />}
+                        {(alert.notificationType === 'PUSH' || alert.notificationType === 'IN_APP') && (
+                          <Bell className="w-3.5 h-3.5 text-emerald-400" />
+                        )}
+                        <span>{alert.notificationType}</span>
+                        {alert.phoneNumberOrEmail && (
+                          <span className="text-[10px] text-slate-500 font-mono">({alert.phoneNumberOrEmail})</span>
+                        )}
+                      </div>
+
+                      {alert.isTriggered ? (
+                        <span className="text-rose-400 font-bold flex items-center gap-1 text-[10px] bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
+                          <AlertTriangle className="w-3 h-3" />
+                          <span>Triggered</span>
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-slate-500">
+                          Set {new Date(alert.createdAt).toLocaleDateString()}
+                        </span>
+                      )}
+                    </div>
+
+                    {alert.note && (
+                      <p className="text-[11px] text-slate-400 italic bg-slate-950/40 p-2 rounded-lg border border-slate-800/40">
+                        "{alert.note}"
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* VIEW 2: ASSET BALANCES & CONNECTED WEB3 WALLETS TAB */}
+      {(overviewSubTab === 'ASSETS' || overviewSubTab === 'LEDGER') && (
+        <>
+          {/* Non-Custodial External Wallets Section */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
         <div className="flex items-center justify-between mb-4">
           <div>
@@ -468,35 +589,45 @@ export const WalletOverview: React.FC<WalletOverviewProps> = ({
           </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {externalWallets.map((ext) => (
-            <div
-              key={ext.id}
-              className="bg-slate-950/60 border border-slate-800 p-3.5 rounded-xl flex items-center justify-between"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-indigo-500/10 text-indigo-400 flex items-center justify-center font-bold text-xs">
-                  {ext.type === 'METAMASK' ? '🦊' : '🌐'}
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-slate-200 text-xs">{ext.type}</span>
-                    <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.2 rounded font-mono">
-                      {ext.network}
-                    </span>
+        {externalWallets.length === 0 ? (
+          <EmptyState
+            title="No External Wallets Connected"
+            description="Connect a non-custodial Web3 wallet, hardware device, or banking API to manage external liquidity directly from this dashboard."
+            actionLabel="Connect Wallet Now"
+            onAction={onOpenConnectWallet}
+            className="my-2 p-6"
+          />
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {externalWallets.map((ext) => (
+              <div
+                key={ext.id}
+                className="bg-slate-950/60 border border-slate-800 p-3.5 rounded-xl flex items-center justify-between"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-indigo-500/10 text-indigo-400 flex items-center justify-center font-bold text-xs">
+                    {ext.type === 'METAMASK' ? '🦊' : '🌐'}
                   </div>
-                  <p className="text-xs text-slate-400 font-mono mt-0.5">
-                    {ext.address.substring(0, 10)}...{ext.address.substring(ext.address.length - 8)}
-                  </p>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-slate-200 text-xs">{ext.type}</span>
+                      <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.2 rounded font-mono">
+                        {ext.network}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-400 font-mono mt-0.5">
+                      {ext.address.substring(0, 10)}...{ext.address.substring(ext.address.length - 8)}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 text-emerald-400 text-xs font-medium">
+                  <CheckCircle className="w-4 h-4" />
+                  <span>Verified</span>
                 </div>
               </div>
-              <div className="flex items-center gap-1.5 text-emerald-400 text-xs font-medium">
-                <CheckCircle className="w-4 h-4" />
-                <span>Verified</span>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Recent Ledger Transactions */}
@@ -598,6 +729,8 @@ export const WalletOverview: React.FC<WalletOverviewProps> = ({
           </table>
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 };

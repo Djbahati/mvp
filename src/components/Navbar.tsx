@@ -1,4 +1,5 @@
 import React from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   Wallet,
   Smartphone,
@@ -10,11 +11,10 @@ import {
   ShieldAlert,
   Sun,
   Moon,
-  LogOut,
-  User as UserIcon
+  LockKeyhole,
+  Lock
 } from 'lucide-react';
 import { SystemServiceStatus, UserProfile } from '../types';
-import { useAuth } from '../context/AuthContext';
 
 interface NavbarProps {
   activeTab: string;
@@ -25,6 +25,8 @@ interface NavbarProps {
   theme: 'dark' | 'light';
   onToggleTheme: () => void;
   onOpenUssdModal: () => void;
+  onOpenPinSettings?: () => void;
+  isPinProtected?: boolean;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -35,10 +37,10 @@ export const Navbar: React.FC<NavbarProps> = ({
   userProfile,
   theme,
   onToggleTheme,
-  onOpenUssdModal
+  onOpenUssdModal,
+  onOpenPinSettings,
+  isPinProtected = true
 }) => {
-  const { currentUser, logout } = useAuth();
-
   const tabs = [
     { id: 'wallets', label: 'Wallets & Portfolio', icon: Wallet },
     { id: 'momo', label: 'Mobile Money (*951#)', icon: Smartphone },
@@ -47,7 +49,8 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'exchange', label: 'FX & Swap', icon: ArrowLeftRight },
     { id: 'b2b', label: 'B2B & Merchants', icon: Building2 },
     { id: 'mining', label: 'Mining Telemetry', icon: Cpu },
-    { id: 'compliance', label: 'KYC / AML Compliance', icon: ShieldCheck }
+    { id: 'compliance', label: 'KYC / AML Compliance', icon: ShieldCheck },
+    { id: 'security', label: 'Security Logs', icon: Lock }
   ];
 
   return (
@@ -75,16 +78,23 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Current User Badge & Logout */}
-          {currentUser && (
-            <div className="hidden md:flex items-center gap-2 bg-slate-950/60 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-300">
-              <UserIcon className="w-3.5 h-3.5 text-amber-400" />
-              <span className="font-semibold text-white">{currentUser.first_name}</span>
-              <span className="text-[10px] bg-amber-500/10 text-amber-400 px-1.5 py-0.2 rounded font-mono">{currentUser.role}</span>
-            </div>
+          {/* Security PIN Config Button */}
+          {onOpenPinSettings && (
+            <button
+              onClick={onOpenPinSettings}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all cursor-pointer ${
+                isPinProtected
+                  ? 'bg-amber-500/10 text-amber-400 border-amber-500/30 hover:bg-amber-500/20'
+                  : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700 hover:text-white'
+              }`}
+              title="Configure Security PIN Lock & Passcode Settings"
+            >
+              <LockKeyhole className="w-3.5 h-3.5 text-amber-400" />
+              <span className="hidden sm:inline">Security PIN</span>
+            </button>
           )}
 
-          {/* Theme Toggle Button (Dark Mode / High-Contrast Light Mode) */}
+          {/* Smooth Animated Theme Toggle Switch */}
           <button
             id="theme-toggle-button"
             type="button"
@@ -92,24 +102,58 @@ export const Navbar: React.FC<NavbarProps> = ({
             aria-checked={theme === 'light'}
             aria-label={theme === 'light' ? 'Switch to Default Dark Mode' : 'Switch to High-Contrast Light Mode for Accessibility'}
             onClick={onToggleTheme}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all cursor-pointer select-none focus:outline-none focus:ring-2 focus:ring-amber-500 ${
+            className={`relative flex items-center justify-between w-20 sm:w-28 h-8 p-1 rounded-xl border transition-colors duration-300 cursor-pointer select-none focus:outline-none focus:ring-2 focus:ring-amber-500 ${
               theme === 'light'
-                ? 'bg-amber-100 text-amber-950 border-amber-300 hover:bg-amber-200 shadow-sm'
-                : 'bg-slate-800 text-slate-200 border-slate-700 hover:bg-slate-700 hover:text-white'
+                ? 'bg-amber-100 border-amber-300 shadow-inner'
+                : 'bg-slate-800 border-slate-700'
             }`}
             title={theme === 'light' ? 'High-Contrast Light Mode Active. Click to switch to Dark Mode' : 'Dark Mode Active. Click to switch to High-Contrast Light Mode'}
           >
-            {theme === 'light' ? (
-              <>
-                <Sun className="w-4 h-4 text-amber-600" />
-                <span className="font-bold">Light (A11y)</span>
-              </>
-            ) : (
-              <>
-                <Moon className="w-4 h-4 text-amber-400" />
-                <span>Dark Mode</span>
-              </>
-            )}
+            {/* Sliding Knob */}
+            <motion.div
+              className={`absolute top-1 bottom-1 w-7 sm:w-12 rounded-lg flex items-center justify-center shadow-md ${
+                theme === 'light'
+                  ? 'bg-amber-500 text-slate-950 font-bold'
+                  : 'bg-slate-900 text-amber-400 border border-slate-700'
+              }`}
+              animate={{
+                x: theme === 'light' ? (typeof window !== 'undefined' && window.innerWidth < 640 ? 44 : 52) : 0
+              }}
+              transition={{ type: 'spring', stiffness: 400, damping: 28 }}
+            >
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.span
+                  key={theme}
+                  initial={{ rotate: -90, opacity: 0, scale: 0.5 }}
+                  animate={{ rotate: 0, opacity: 1, scale: 1 }}
+                  exit={{ rotate: 90, opacity: 0, scale: 0.5 }}
+                  transition={{ duration: 0.2 }}
+                  className="flex items-center justify-center"
+                >
+                  {theme === 'light' ? (
+                    <Sun className="w-3.5 h-3.5 text-slate-950" />
+                  ) : (
+                    <Moon className="w-3.5 h-3.5 text-amber-400" />
+                  )}
+                </motion.span>
+              </AnimatePresence>
+            </motion.div>
+
+            {/* Background Labels */}
+            <span
+              className={`text-[10px] font-bold px-1.5 transition-opacity duration-200 ${
+                theme === 'light' ? 'opacity-0' : 'text-slate-400 ml-auto'
+              }`}
+            >
+              Dark
+            </span>
+            <span
+              className={`text-[10px] font-extrabold px-1.5 transition-opacity duration-200 ${
+                theme === 'light' ? 'text-amber-950 mr-auto' : 'opacity-0'
+              }`}
+            >
+              Light
+            </span>
           </button>
 
           <button
@@ -119,15 +163,6 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             <Smartphone className="w-4 h-4" />
             <span>Launch *951# Phone</span>
-          </button>
-
-          <button
-            onClick={() => logout()}
-            className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 rounded-lg transition-all cursor-pointer"
-            title="Log out of Kofi"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Logout</span>
           </button>
         </div>
       </div>

@@ -9,11 +9,15 @@ import { ExchangeEngine } from './components/ExchangeEngine';
 import { B2BPortal } from './components/B2BPortal';
 import { MiningHub } from './components/MiningHub';
 import { ComplianceKYC } from './components/ComplianceKYC';
+import { EmptyState } from './components/EmptyState';
+import { PinLockScreen } from './components/PinLockScreen';
+import { PinSettingsModal, PinConfig } from './components/PinSettingsModal';
 import { ActionModals } from './components/ActionModals';
 import { UssdSimulatorModal } from './components/UssdSimulatorModal';
 import { BiometricAuthModal } from './components/BiometricAuthModal';
-import { AuthProvider, useAuth } from './context/AuthContext';
-import { AuthScreen } from './components/auth/AuthScreen';
+import { QrScannerModal } from './components/QrScannerModal';
+import { PriceAlertsModal } from './components/PriceAlertsModal';
+import { SecurityLogsView } from './components/SecurityLogsView';
 import {
   INITIAL_SERVICES,
   INITIAL_ASSETS,
@@ -25,7 +29,10 @@ import {
   INITIAL_MINING_WORKERS,
   INITIAL_MINING_REWARDS,
   INITIAL_KYC_PROFILE,
-  INITIAL_MOMO_LOGS
+  INITIAL_MOMO_LOGS,
+  INITIAL_QUICK_RECIPIENTS,
+  INITIAL_PRICE_ALERTS,
+  INITIAL_SECURITY_LOGS
 } from './data/initialData';
 import {
   WalletAccount,
@@ -42,7 +49,10 @@ import {
   MultiSigProposal,
   MultiSigPolicy,
   MultiSigSigner,
-  MultiSigSignature
+  MultiSigSignature,
+  QuickRecipient,
+  PriceAlert,
+  SecurityLog
 } from './types';
 import { recordDoubleEntry } from './services/ledgerEngine';
 
@@ -84,6 +94,110 @@ function DashboardApp() {
     setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
   };
 
+  // Security PIN state with localStorage persistence
+  const [pinConfig, setPinConfig] = useState<PinConfig>(() => {
+    const saved = localStorage.getItem('kofi_pin_config');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        // Fallback
+      }
+    }
+    return {
+      enabled: true,
+      pin: '1234',
+      length: 4,
+      autoLockMinutes: 5,
+      biometricsEnabled: true
+    };
+  });
+
+  const [isAppLocked, setIsAppLocked] = useState<boolean>(() => {
+    const saved = localStorage.getItem('kofi_pin_config');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return parsed.enabled !== false;
+      } catch (e) {}
+    }
+    return true; // default lock on initial app launch
+  });
+
+  const [isPinSettingsOpen, setIsPinSettingsOpen] = useState<boolean>(false);
+
+  // Inactivity Auto-Lock Countdown Timer state
+  const [lastActivityTimestamp, setLastActivityTimestamp] = useState<number>(Date.now());
+  const [secondsUntilAutoLock, setSecondsUntilAutoLock] = useState<number>(() => {
+    const mins = pinConfig.autoLockMinutes ?? 5;
+    return mins > 0 ? Math.round(mins * 60) : 300;
+  });
+
+  const resetInactivityTimer = () => {
+    setLastActivityTimestamp(Date.now());
+    const mins = pinConfig.autoLockMinutes ?? 5;
+    if (mins > 0) {
+      setSecondsUntilAutoLock(Math.round(mins * 60));
+    }
+  };
+
+  // User activity listeners to track inactivity
+  useEffect(() => {
+    const handleUserActivity = () => {
+      setLastActivityTimestamp(Date.now());
+    };
+
+    const events = ['mousemove', 'keydown', 'click', 'touchstart', 'scroll'];
+    events.forEach((evt) => window.addEventListener(evt, handleUserActivity, { passive: true }));
+
+    return () => {
+      events.forEach((evt) => window.removeEventListener(evt, handleUserActivity));
+    };
+  }, []);
+
+  // Inactivity auto-lock ticker effect
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (!pinConfig.enabled || pinConfig.autoLockMinutes === -1 || isAppLocked) {
+        return;
+      }
+
+      const mins = pinConfig.autoLockMinutes ?? 5;
+      if (mins <= 0) return;
+
+      const totalAllowedSecs = Math.round(mins * 60);
+      const elapsedSecs = Math.floor((Date.now() - lastActivityTimestamp) / 1000);
+      const remainingSecs = Math.max(0, totalAllowedSecs - elapsedSecs);
+
+      setSecondsUntilAutoLock(remainingSecs);
+
+      if (remainingSecs === 0) {
+        setIsAppLocked(true);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [pinConfig, lastActivityTimestamp, isAppLocked]);
+
+  const handleSavePinConfig = (newConfig: PinConfig) => {
+    setPinConfig(newConfig);
+    localStorage.setItem('kofi_pin_config', JSON.stringify(newConfig));
+    resetInactivityTimer();
+  };
+
+  const handleResetPinToDefault = () => {
+    const defaultConfig: PinConfig = {
+      enabled: true,
+      pin: '1234',
+      length: 4,
+      autoLockMinutes: 5,
+      biometricsEnabled: true
+    };
+    setPinConfig(defaultConfig);
+    localStorage.setItem('kofi_pin_config', JSON.stringify(defaultConfig));
+    resetInactivityTimer();
+  };
+
   const [activeTab, setActiveTab] = useState<string>('wallets');
   const [services] = useState(INITIAL_SERVICES);
   const [assets] = useState(INITIAL_ASSETS);
@@ -97,6 +211,143 @@ function DashboardApp() {
   const [kycProfile, setKycProfile] = useState(INITIAL_KYC_PROFILE);
   const [momoLogs, setMomoLogs] = useState<MobileMoneyTransaction[]>(INITIAL_MOMO_LOGS);
   const [userProfile, setUserProfile] = useState<UserProfile>(INITIAL_USER_PROFILE);
+
+  // Security Logs State with localStorage persistence
+  const [securityLogs, setSecurityLogs] = useState<SecurityLog[]>(() => {
+    const saved = localStorage.getItem('kofi_security_logs');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return INITIAL_SECURITY_LOGS;
+  });
+
+  const handleLogSecurityEvent = (log: SecurityLog) => {
+    setSecurityLogs((prev) => {
+      const updated = [log, ...prev];
+      localStorage.setItem('kofi_security_logs', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  // Quick Recipients State with localStorage persistence
+  const [quickRecipients, setQuickRecipients] = useState<QuickRecipient[]>(() => {
+    const saved = localStorage.getItem('kofi_quick_recipients');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return INITIAL_QUICK_RECIPIENTS;
+  });
+
+  // QR Camera Scanner & Quick Send Modal State
+  const [isQrScannerOpen, setIsQrScannerOpen] = useState<boolean>(false);
+  const [quickSendInitialRecipient, setQuickSendInitialRecipient] = useState<string>('');
+  const [quickSendInitialAmount, setQuickSendInitialAmount] = useState<string>('');
+
+  // Price Alerts State with localStorage persistence
+  const [priceAlerts, setPriceAlerts] = useState<PriceAlert[]>(() => {
+    const saved = localStorage.getItem('kofi_price_alerts');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return INITIAL_PRICE_ALERTS;
+  });
+
+  const [isPriceAlertModalOpen, setIsPriceAlertModalOpen] = useState<boolean>(false);
+  const [priceAlertModalSymbol, setPriceAlertModalSymbol] = useState<string>('BTC');
+
+  const handleAddPriceAlert = (newAlert: Omit<PriceAlert, 'id' | 'createdAt' | 'isTriggered'>) => {
+    const alertItem: PriceAlert = {
+      ...newAlert,
+      id: `alt_${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      isTriggered: false
+    };
+    const updated = [alertItem, ...priceAlerts];
+    setPriceAlerts(updated);
+    localStorage.setItem('kofi_price_alerts', JSON.stringify(updated));
+  };
+
+  const handleTogglePriceAlert = (id: string) => {
+    const updated = priceAlerts.map((a) => (a.id === id ? { ...a, isEnabled: !a.isEnabled } : a));
+    setPriceAlerts(updated);
+    localStorage.setItem('kofi_price_alerts', JSON.stringify(updated));
+  };
+
+  const handleDeletePriceAlert = (id: string) => {
+    const updated = priceAlerts.filter((a) => a.id !== id);
+    setPriceAlerts(updated);
+    localStorage.setItem('kofi_price_alerts', JSON.stringify(updated));
+  };
+
+  const handleSimulateTriggerAlert = (id: string) => {
+    const updated = priceAlerts.map((a) =>
+      a.id === id
+        ? {
+            ...a,
+            isTriggered: true,
+            lastTriggeredAt: new Date().toISOString()
+          }
+        : a
+    );
+    setPriceAlerts(updated);
+    localStorage.setItem('kofi_price_alerts', JSON.stringify(updated));
+  };
+
+  const handleOpenCreatePriceAlert = (symbol?: string) => {
+    setPriceAlertModalSymbol(symbol || 'BTC');
+    setIsPriceAlertModalOpen(true);
+  };
+
+  const handleAddQuickRecipient = (newRec: Omit<QuickRecipient, 'id'>) => {
+    const created: QuickRecipient = {
+      ...newRec,
+      id: `qr_${Date.now()}`
+    };
+    const updated = [created, ...quickRecipients];
+    setQuickRecipients(updated);
+    localStorage.setItem('kofi_quick_recipients', JSON.stringify(updated));
+  };
+
+  const handleDeleteQuickRecipient = (id: string) => {
+    const updated = quickRecipients.filter((r) => r.id !== id);
+    setQuickRecipients(updated);
+    localStorage.setItem('kofi_quick_recipients', JSON.stringify(updated));
+  };
+
+  const handleToggleQuickFavorite = (id: string) => {
+    const updated = quickRecipients.map((r) => (r.id === id ? { ...r, isFavorite: !r.isFavorite } : r));
+    setQuickRecipients(updated);
+    localStorage.setItem('kofi_quick_recipients', JSON.stringify(updated));
+  };
+
+  const handleQuickSendClick = (recipient: QuickRecipient) => {
+    setSelectedAssetSymbol(recipient.assetSymbol);
+    setQuickSendInitialRecipient(recipient.addressOrPhone);
+    setQuickSendInitialAmount(recipient.defaultAmount ? recipient.defaultAmount.toString() : '');
+    setModalType('SEND');
+  };
+
+  const handleQrScanSuccess = (scannedText: string, parsed?: { address?: string; amount?: number; asset?: string }) => {
+    if (parsed?.asset) {
+      const match = assets.find((a) => a.symbol === parsed.asset);
+      if (match) setSelectedAssetSymbol(match.symbol);
+    }
+    if (parsed?.address) {
+      setQuickSendInitialRecipient(parsed.address);
+    } else {
+      setQuickSendInitialRecipient(scannedText);
+    }
+    if (parsed?.amount) {
+      setQuickSendInitialAmount(parsed.amount.toString());
+    }
+    setModalType('SEND');
+  };
 
   // Modals & Action Sheet State
   const [isUssdModalOpen, setIsUssdModalOpen] = useState(false);
@@ -1031,6 +1282,20 @@ function DashboardApp() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-amber-500 selection:text-slate-950">
+      {/* Security PIN Entry Lock Screen Overlay */}
+      {isAppLocked && (
+        <PinLockScreen
+          storedPin={pinConfig.pin}
+          pinLength={pinConfig.length}
+          onUnlock={() => {
+            setIsAppLocked(false);
+            resetInactivityTimer();
+          }}
+          onResetPinToDefault={handleResetPinToDefault}
+          biometricsEnabled={pinConfig.biometricsEnabled !== false}
+        />
+      )}
+
       {/* Top Navigation & Status */}
       <Navbar
         activeTab={activeTab}
@@ -1041,6 +1306,8 @@ function DashboardApp() {
         theme={theme}
         onToggleTheme={toggleTheme}
         onOpenUssdModal={() => setIsUssdModalOpen(true)}
+        onOpenPinSettings={() => setIsPinSettingsOpen(true)}
+        isPinProtected={pinConfig.enabled}
       />
 
       {/* Main Content Area */}
@@ -1052,8 +1319,12 @@ function DashboardApp() {
             transactions={transactions}
             assets={assets}
             ledgerEntries={ledgerEntries}
+            quickRecipients={quickRecipients}
+            priceAlerts={priceAlerts}
             onOpenSend={(sym) => {
               setSelectedAssetSymbol(sym || 'USDT');
+              setQuickSendInitialRecipient('');
+              setQuickSendInitialAmount('');
               setModalType('SEND');
             }}
             onOpenReceive={(sym) => {
@@ -1062,7 +1333,21 @@ function DashboardApp() {
             }}
             onOpenDeposit={() => setModalType('DEPOSIT')}
             onOpenWithdraw={() => setModalType('WITHDRAW')}
-            onConnectWallet={() => setModalType('CONNECT_WALLET')}
+            onOpenSwap={(sym) => {
+              if (sym) setSelectedAssetSymbol(sym);
+              setActiveTab('exchange');
+            }}
+            onOpenConnectWallet={() => setModalType('CONNECT_WALLET')}
+            onSelectTab={setActiveTab}
+            onOpenQrScanner={() => setIsQrScannerOpen(true)}
+            onSelectRecipientToSend={handleQuickSendClick}
+            onAddQuickRecipient={handleAddQuickRecipient}
+            onDeleteQuickRecipient={handleDeleteQuickRecipient}
+            onToggleQuickFavorite={handleToggleQuickFavorite}
+            onOpenCreatePriceAlert={handleOpenCreatePriceAlert}
+            onTogglePriceAlert={handleTogglePriceAlert}
+            onDeletePriceAlert={handleDeletePriceAlert}
+            onSimulateTriggerAlert={handleSimulateTriggerAlert}
           />
         )}
 
@@ -1141,12 +1426,62 @@ function DashboardApp() {
             }
           />
         )}
+
+        {activeTab === 'security' && (
+          <SecurityLogsView
+            logs={securityLogs}
+            onClearLogs={() => {
+              setSecurityLogs([]);
+              localStorage.removeItem('kofi_security_logs');
+            }}
+            onSimulateTestAuth={() =>
+              requestBiometricAuth(
+                'Security Log Verification Test',
+                'Manual biometric test audit generated from Security Logs Tab.',
+                'STEP_UP_AUTH',
+                {
+                  amount: 100,
+                  asset: 'USDT',
+                  destination: 'Security Audit Log Center',
+                  riskScore: 25
+                },
+                () => {}
+              )
+            }
+          />
+        )}
+
+        {!['wallets', 'momo', 'ledger', 'monitoring', 'exchange', 'b2b', 'mining', 'compliance', 'security'].includes(activeTab) && (
+          <EmptyState
+            title="No Active Tab Contents to Display"
+            description="The selected tab view currently contains no active data or is temporarily empty. Return to your multi-currency wallet overview or select a module from the top navigation bar."
+            actionLabel="Return to Wallet Overview"
+            onAction={() => setActiveTab('wallets')}
+            secondaryActionLabel="Open MoMo Gateway"
+            onSecondaryAction={() => setActiveTab('momo')}
+          />
+        )}
       </main>
+
+      {/* Security PIN Configuration Modal */}
+      <PinSettingsModal
+        isOpen={isPinSettingsOpen}
+        onClose={() => setIsPinSettingsOpen(false)}
+        config={pinConfig}
+        onSaveConfig={handleSavePinConfig}
+        onLockNow={() => {
+          setIsPinSettingsOpen(false);
+          setIsAppLocked(true);
+        }}
+        secondsUntilAutoLock={secondsUntilAutoLock}
+        onResetInactivityTimer={resetInactivityTimer}
+      />
 
       {/* High-Risk Action WebAuthn Biometric Modal */}
       <BiometricAuthModal
         actionRequest={highRiskBiometricRequest}
         onClose={() => setHighRiskBiometricRequest(null)}
+        onLogSecurityEvent={handleLogSecurityEvent}
       />
 
       {/* Action Modals (Send, Receive, Deposit, Withdraw, Connect Web3) */}
@@ -1156,10 +1491,30 @@ function DashboardApp() {
         assets={assets}
         wallets={wallets}
         externalWallets={externalWallets}
+        quickRecipients={quickRecipients}
         initialSymbol={selectedAssetSymbol}
+        initialRecipient={quickSendInitialRecipient}
+        initialAmount={quickSendInitialAmount}
         onExecuteSend={handleExecuteSend}
         onExecuteWithdraw={handleExecuteWithdraw}
         onConnectExternalWallet={handleConnectExternalWallet}
+        onOpenQrScanner={() => setIsQrScannerOpen(true)}
+      />
+
+      {/* Camera QR Code Scanner Modal */}
+      <QrScannerModal
+        isOpen={isQrScannerOpen}
+        onClose={() => setIsQrScannerOpen(false)}
+        onScanSuccess={handleQrScanSuccess}
+      />
+
+      {/* Custom Price Alert Thresholds Modal */}
+      <PriceAlertsModal
+        isOpen={isPriceAlertModalOpen}
+        onClose={() => setIsPriceAlertModalOpen(false)}
+        assets={assets}
+        initialSymbol={priceAlertModalSymbol}
+        onAddAlert={handleAddPriceAlert}
       />
 
       {/* USSD Handset Simulator Modal (*951#) */}
@@ -1201,32 +1556,7 @@ function DashboardApp() {
   );
 }
 
-function AppContent() {
-  const { isAuthenticated, loading } = useAuth();
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-100">
-        <div className="text-center space-y-3">
-          <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
-          <p className="text-sm font-medium text-slate-400">Loading Kofi Platform...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!isAuthenticated) {
-    return <AuthScreen />;
-  }
-
-  return <DashboardApp />;
-}
-
 export default function App() {
-  return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
-  );
+  return <DashboardApp />;
 }
 

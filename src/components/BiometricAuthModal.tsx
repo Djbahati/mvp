@@ -17,7 +17,7 @@ import {
   Smartphone,
   Laptop
 } from 'lucide-react';
-import { HighRiskActionRequest, BiometricAssertionProof, BiometricCredential } from '../types';
+import { HighRiskActionRequest, BiometricAssertionProof, BiometricCredential, SecurityLog } from '../types';
 import {
   authenticateWithBiometrics,
   getEnrolledPasskeys,
@@ -29,12 +29,14 @@ interface BiometricAuthModalProps {
   actionRequest: HighRiskActionRequest | null;
   onClose: () => void;
   onEnrollSuccess?: (newPasskey: BiometricCredential) => void;
+  onLogSecurityEvent?: (log: SecurityLog) => void;
 }
 
 export const BiometricAuthModal: React.FC<BiometricAuthModalProps> = ({
   actionRequest,
   onClose,
-  onEnrollSuccess
+  onEnrollSuccess,
+  onLogSecurityEvent
 }) => {
   const [stage, setStage] = useState<'PROMPT' | 'SCANNING' | 'SUCCESS' | 'ERROR' | 'ENROLL'>('PROMPT');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -67,6 +69,8 @@ export const BiometricAuthModal: React.FC<BiometricAuthModalProps> = ({
     setStage('SCANNING');
     setErrorMessage(null);
 
+    const selectedKey = enrolledPasskeys.find((k) => k.id === selectedPasskeyId) || enrolledPasskeys[0];
+
     try {
       // Simulate real-time biometric latency (e.g. 700ms sensor interaction)
       const [assertionResult] = await Promise.all([
@@ -82,6 +86,21 @@ export const BiometricAuthModal: React.FC<BiometricAuthModalProps> = ({
       setProof(assertionResult);
       setStage('SUCCESS');
 
+      // Log successful security attempt
+      if (onLogSecurityEvent) {
+        onLogSecurityEvent({
+          id: `sec_log_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+          event_type: 'BIOMETRIC_AUTH_SUCCESS',
+          action_title: actionRequest.title,
+          status: 'SUCCESS',
+          risk_score: actionRequest.riskScore,
+          authenticator_name: selectedKey ? selectedKey.name : 'Platform Touch ID / Face ID',
+          device_info: typeof navigator !== 'undefined' ? navigator.userAgent.split(' ')[0] : 'WebAuthn Browser',
+          ip_address: '197.243.112.18 (MTN Rwanda 4G)',
+          timestamp: new Date().toISOString()
+        });
+      }
+
       // Auto-trigger completion after brief visual success state
       setTimeout(async () => {
         await actionRequest.onSuccess(assertionResult);
@@ -89,8 +108,25 @@ export const BiometricAuthModal: React.FC<BiometricAuthModalProps> = ({
       }, 1000);
     } catch (err: any) {
       console.error('Biometric WebAuthn error:', err);
-      setErrorMessage(err?.message || 'Biometric verification failed. Please try again.');
+      const msg = err?.message || 'Biometric verification failed. Please try again.';
+      setErrorMessage(msg);
       setStage('ERROR');
+
+      // Log failed security attempt
+      if (onLogSecurityEvent) {
+        onLogSecurityEvent({
+          id: `sec_log_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+          event_type: 'BIOMETRIC_AUTH_FAILED',
+          action_title: actionRequest.title,
+          status: 'FAILED',
+          risk_score: actionRequest.riskScore,
+          authenticator_name: selectedKey ? selectedKey.name : 'Platform Touch ID / Face ID',
+          error_message: msg,
+          device_info: typeof navigator !== 'undefined' ? navigator.userAgent.split(' ')[0] : 'WebAuthn Browser',
+          ip_address: '197.243.112.18 (MTN Rwanda 4G)',
+          timestamp: new Date().toISOString()
+        });
+      }
     }
   };
 
@@ -106,10 +142,38 @@ export const BiometricAuthModal: React.FC<BiometricAuthModalProps> = ({
       setEnrolledPasskeys(getEnrolledPasskeys());
       setSelectedPasskeyId(newKey.id);
       if (onEnrollSuccess) onEnrollSuccess(newKey);
+
+      // Log passkey enrollment
+      if (onLogSecurityEvent) {
+        onLogSecurityEvent({
+          id: `sec_log_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+          event_type: 'PASSKEY_ENROLLED',
+          action_title: `Enrolled new passkey: ${newKey.name}`,
+          status: 'SUCCESS',
+          risk_score: 20,
+          authenticator_name: newKey.name,
+          device_info: typeof navigator !== 'undefined' ? navigator.userAgent.split(' ')[0] : 'WebAuthn Browser',
+          timestamp: new Date().toISOString()
+        });
+      }
+
       setStage('PROMPT');
     } catch (err: any) {
-      setErrorMessage(err?.message || 'Passkey enrollment could not be completed.');
+      const msg = err?.message || 'Passkey enrollment could not be completed.';
+      setErrorMessage(msg);
       setStage('ERROR');
+
+      if (onLogSecurityEvent) {
+        onLogSecurityEvent({
+          id: `sec_log_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+          event_type: 'BIOMETRIC_AUTH_FAILED',
+          action_title: `Passkey enrollment failed: ${enrollKeyName}`,
+          status: 'FAILED',
+          risk_score: 40,
+          error_message: msg,
+          timestamp: new Date().toISOString()
+        });
+      }
     }
   };
 
