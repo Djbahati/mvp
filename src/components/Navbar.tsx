@@ -12,7 +12,9 @@ import {
   Sun,
   Moon,
   LockKeyhole,
-  Lock
+  Lock,
+  Calendar,
+  Coins
 } from 'lucide-react';
 import { SystemServiceStatus, UserProfile } from '../types';
 
@@ -47,7 +49,9 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'ledger', label: 'Double-Entry Ledger', icon: BookOpen },
     { id: 'monitoring', label: 'Transaction Monitoring', icon: ShieldAlert },
     { id: 'exchange', label: 'FX & Swap', icon: ArrowLeftRight },
+    { id: 'converter', label: 'Currency Converter', icon: Coins },
     { id: 'b2b', label: 'B2B & Merchants', icon: Building2 },
+    { id: 'calendar', label: 'Google Calendar', icon: Calendar },
     { id: 'mining', label: 'Mining Telemetry', icon: Cpu },
     { id: 'compliance', label: 'KYC / AML Compliance', icon: ShieldCheck },
     { id: 'security', label: 'Security Logs', icon: Lock }

@@ -10,6 +10,26 @@ export interface QuickRecipient {
   lastSentAt?: string;
 }
 
+export interface SubscriptionRule {
+  id: string;
+  title: string;
+  provider: string;
+  amount: number;
+  assetSymbol: string;
+  frequency: 'MONTHLY' | 'WEEKLY' | 'BIWEEKLY';
+  category: 'MOBILE_MONEY' | 'B2B_INVOICE' | 'P2P' | 'TREASURY' | 'MERCHANT' | 'UTILITY' | 'SOFTWARE';
+  startDate: string;
+  nextPaymentDate: string;
+  executionTime?: string; // e.g. "09:00"
+  calendarId?: string; // e.g. "primary"
+  timezone?: string; // e.g. "Africa/Kigali"
+  isEnabled: boolean;
+  notes?: string;
+  autoPayEnabled?: boolean;
+  createdAt: string;
+  lastCalendarSyncedAt?: string;
+}
+
 export interface PriceAlert {
   id: string;
   assetSymbol: string;

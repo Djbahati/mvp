@@ -24,12 +24,16 @@ import {
   Smartphone,
   Mail,
   AlertTriangle,
-  Play
+  Play,
+  CalendarCheck,
+  Star
 } from 'lucide-react';
-import { Asset, WalletAccount, Transaction, ExternalWallet, LedgerEntry, QuickRecipient, PriceAlert } from '../types';
+import { Asset, WalletAccount, Transaction, ExternalWallet, LedgerEntry, QuickRecipient, PriceAlert, SubscriptionRule } from '../types';
 import { EmptyState } from './EmptyState';
 import { QuickSendWidget } from './QuickSendWidget';
 import { BalanceTrendChart } from './BalanceTrendChart';
+import { SubscriptionManager } from './SubscriptionManager';
+import { WatchlistSidebar } from './WatchlistSidebar';
 
 interface Ripple {
   x: number;
@@ -100,6 +104,11 @@ interface WalletOverviewProps {
   externalWallets: ExternalWallet[];
   quickRecipients: QuickRecipient[];
   priceAlerts: PriceAlert[];
+  subscriptions?: SubscriptionRule[];
+  onAddSubscription?: (rule: Omit<SubscriptionRule, 'id' | 'createdAt'>) => void;
+  onUpdateSubscription?: (updatedRule: SubscriptionRule) => void;
+  onDeleteSubscription?: (id: string) => void;
+  onToggleSubscription?: (id: string) => void;
   onOpenSend: (symbol?: string) => void;
   onOpenReceive: (symbol?: string) => void;
   onOpenDeposit: (symbol?: string) => void;
@@ -158,6 +167,11 @@ export const WalletOverview: React.FC<WalletOverviewProps> = ({
   externalWallets,
   quickRecipients,
   priceAlerts = [],
+  subscriptions = [],
+  onAddSubscription,
+  onUpdateSubscription,
+  onDeleteSubscription,
+  onToggleSubscription,
   onOpenSend,
   onOpenReceive,
   onOpenDeposit,
@@ -175,7 +189,7 @@ export const WalletOverview: React.FC<WalletOverviewProps> = ({
   onDeletePriceAlert,
   onSimulateTriggerAlert
 }) => {
-  const [overviewSubTab, setOverviewSubTab] = useState<'ASSETS' | 'ALERTS' | 'LEDGER'>('ASSETS');
+  const [overviewSubTab, setOverviewSubTab] = useState<'ASSETS' | 'SUBSCRIPTIONS' | 'ALERTS' | 'LEDGER'>('ASSETS');
   const [secondaryCurrency, setSecondaryCurrency] = useState<SecondaryCurrencyCode>('EUR');
 
   // Calculate total net worth in USD
@@ -325,6 +339,21 @@ export const WalletOverview: React.FC<WalletOverviewProps> = ({
           </button>
 
           <button
+            onClick={() => setOverviewSubTab('SUBSCRIPTIONS')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+              overviewSubTab === 'SUBSCRIPTIONS'
+                ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30 shadow-md shadow-amber-500/5'
+                : 'text-slate-400 hover:text-white bg-slate-900 border border-slate-800'
+            }`}
+          >
+            <CalendarCheck className="w-4 h-4 text-amber-400" />
+            <span>Manage Subscriptions</span>
+            <span className="px-1.5 py-0.2 bg-amber-500/20 text-amber-300 text-[10px] font-mono rounded-full font-bold">
+              {subscriptions.length}
+            </span>
+          </button>
+
+          <button
             onClick={() => setOverviewSubTab('ALERTS')}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
               overviewSubTab === 'ALERTS'
@@ -362,6 +391,18 @@ export const WalletOverview: React.FC<WalletOverviewProps> = ({
           </button>
         )}
       </div>
+
+      {/* VIEW 0: MANAGE SUBSCRIPTIONS & RECURRING RULES TAB */}
+      {overviewSubTab === 'SUBSCRIPTIONS' && (
+        <SubscriptionManager
+          subscriptions={subscriptions}
+          assets={assets}
+          onAddSubscription={(rule) => onAddSubscription && onAddSubscription(rule)}
+          onUpdateSubscription={(rule) => onUpdateSubscription && onUpdateSubscription(rule)}
+          onDeleteSubscription={(id) => onDeleteSubscription && onDeleteSubscription(id)}
+          onToggleSubscription={(id) => onToggleSubscription && onToggleSubscription(id)}
+        />
+      )}
 
       {/* VIEW 1: PRICE THRESHOLD ALERTS MANAGER TAB */}
       {overviewSubTab === 'ALERTS' && (
@@ -565,171 +606,299 @@ export const WalletOverview: React.FC<WalletOverviewProps> = ({
         </div>
       )}
 
-      {/* VIEW 2: ASSET BALANCES & CONNECTED WEB3 WALLETS TAB */}
+      {/* VIEW 2: ASSET BALANCES, WATCHLIST SIDEBAR & WEB3 TAB */}
       {(overviewSubTab === 'ASSETS' || overviewSubTab === 'LEDGER') && (
-        <>
-          {/* Non-Custodial External Wallets Section */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 className="font-bold text-white text-sm flex items-center gap-2">
-              <Layers className="w-4 h-4 text-indigo-400" />
-              Connected Non-Custodial Web3 Wallets
-            </h3>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Secure client-side signing (private keys and seed phrases are never stored or transmitted)
-            </p>
-          </div>
-          <button
-            onClick={onOpenConnectWallet}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg border border-slate-700 transition-colors cursor-pointer"
-          >
-            <Plus className="w-3.5 h-3.5 text-amber-400" />
-            <span>Connect Wallet</span>
-          </button>
-        </div>
-
-        {externalWallets.length === 0 ? (
-          <EmptyState
-            title="No External Wallets Connected"
-            description="Connect a non-custodial Web3 wallet, hardware device, or banking API to manage external liquidity directly from this dashboard."
-            actionLabel="Connect Wallet Now"
-            onAction={onOpenConnectWallet}
-            className="my-2 p-6"
-          />
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {externalWallets.map((ext) => (
-              <div
-                key={ext.id}
-                className="bg-slate-950/60 border border-slate-800 p-3.5 rounded-xl flex items-center justify-between"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-indigo-500/10 text-indigo-400 flex items-center justify-center font-bold text-xs">
-                    {ext.type === 'METAMASK' ? '🦊' : '🌐'}
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-slate-200 text-xs">{ext.type}</span>
-                      <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.2 rounded font-mono">
-                        {ext.network}
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-400 font-mono mt-0.5">
-                      {ext.address.substring(0, 10)}...{ext.address.substring(ext.address.length - 8)}
-                    </p>
-                  </div>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* Main Content Column */}
+          <div className="lg:col-span-7 xl:col-span-8 space-y-6">
+            {/* Primary Wallet Assets Breakdown Cards */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="font-bold text-white text-sm flex items-center gap-2">
+                    <Wallet className="w-4 h-4 text-amber-400" />
+                    <span>My Wallet Asset Balances</span>
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Live balance values, network breakdown, and quick transaction controls
+                  </p>
                 </div>
-                <div className="flex items-center gap-1.5 text-emerald-400 text-xs font-medium">
-                  <CheckCircle className="w-4 h-4" />
-                  <span>Verified</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => onOpenDeposit()}
+                    className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-xl flex items-center gap-1 cursor-pointer transition-all"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Deposit</span>
+                  </button>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
 
-      {/* Recent Ledger Transactions */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 className="font-bold text-white text-sm">Recent Ledger Financial Movements</h3>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Idempotent, double-entry logged and cryptographically signed transactions
-            </p>
-          </div>
-          <button
-            onClick={() => onSelectTab('ledger')}
-            className="flex items-center gap-1 text-xs text-amber-400 hover:text-amber-300 font-medium cursor-pointer"
-          >
-            <span>Full Ledger Matrix</span>
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                {wallets.map((wallet) => {
+                  const asset = assets.find((a) => a.symbol === wallet.symbol);
+                  const priceUsd = asset ? asset.current_price_usd : 1;
+                  const valueUsd = wallet.balance * priceUsd;
+                  const change24h = asset ? asset.change_24h : 0;
+                  const isPositive = change24h >= 0;
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead>
-              <tr className="border-b border-slate-800 text-slate-400 font-semibold uppercase tracking-wider">
-                <th className="pb-3">Transaction</th>
-                <th className="pb-3">Type</th>
-                <th className="pb-3">Amount</th>
-                <th className="pb-3">Route / Provider</th>
-                <th className="pb-3">Idempotency & Risk</th>
-                <th className="pb-3 text-right">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800/60">
-              {transactions.map((tx) => (
-                <tr key={tx.tx_id} className="hover:bg-slate-850/50 transition-colors">
-                  <td className="py-3 font-mono">
-                    <div className="font-bold text-slate-200">{tx.tx_id}</div>
-                    <div className="text-[11px] text-slate-400">
-                      {new Date(tx.created_at).toLocaleTimeString()}
-                    </div>
-                  </td>
-                  <td className="py-3">
-                    <span className="bg-slate-800 text-slate-300 px-2 py-0.5 rounded text-[10px] font-bold">
-                      {tx.tx_type}
-                    </span>
-                  </td>
-                  <td className="py-3">
-                    <div className="font-bold text-white">
-                      {tx.asset_symbol === 'RWF'
-                        ? tx.amount.toLocaleString()
-                        : tx.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}{' '}
-                      {tx.asset_symbol}
-                    </div>
-                    {tx.target_amount && (
-                      <div className="text-[11px] text-emerald-400">
-                        ➔ {tx.target_amount} {tx.target_asset_symbol}
-                      </div>
-                    )}
-                  </td>
-                  <td className="py-3 text-slate-400">
-                    <div className="truncate max-w-[200px]" title={tx.source_wallet}>
-                      {tx.source_wallet}
-                    </div>
-                    <div className="text-[10px] text-slate-400 truncate max-w-[200px]">
-                      ➔ {tx.destination}
-                    </div>
-                  </td>
-                  <td className="py-3">
-                    <div className="font-mono text-[10px] text-slate-400 truncate max-w-[120px]" title={tx.idempotency_key}>
-                      {tx.idempotency_key}
-                    </div>
-                    <div className="flex items-center gap-1 mt-0.5">
-                      <span className="text-[10px] text-emerald-400 font-semibold">
-                        Risk Score: {tx.risk_score || 2}/100
-                      </span>
-                    </div>
-                  </td>
-                  <td className="py-3 text-right">
-                    <span
-                      className={`px-2.5 py-1 rounded-full text-[11px] font-bold inline-flex items-center gap-1 ${
-                        tx.status === 'COMPLETED'
-                          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                          : tx.status === 'PENDING'
-                          ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                          : 'bg-red-500/10 text-red-400 border border-red-500/20'
-                      }`}
+                  return (
+                    <div
+                      key={wallet.account_id}
+                      className="bg-slate-950/80 border border-slate-800/80 hover:border-amber-500/40 p-4 rounded-xl space-y-3 transition-all relative overflow-hidden group"
                     >
-                      {tx.status === 'COMPLETED' ? (
-                        <CheckCircle className="w-3 h-3" />
-                      ) : (
-                        <Clock className="w-3 h-3" />
-                      )}
-                      {tx.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-9 h-9 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center text-xl shadow-inner">
+                            {asset?.icon || '🪙'}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-extrabold text-white text-sm">{wallet.symbol}</span>
+                              <span className="text-[10px] bg-slate-900 text-slate-400 px-1.5 py-0.2 rounded font-mono border border-slate-800">
+                                {wallet.network}
+                              </span>
+                            </div>
+                            <span className="text-[11px] text-slate-400">{asset?.name || wallet.symbol}</span>
+                          </div>
+                        </div>
+
+                        <div className="text-right">
+                          <span
+                            className={`px-2 py-0.5 rounded-lg text-[10px] font-mono font-bold border ${
+                              isPositive
+                                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                            }`}
+                          >
+                            {isPositive ? '+' : ''}{change24h}%
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-800/80 flex items-center justify-between">
+                        <div>
+                          <span className="text-[10px] text-slate-500 font-semibold block uppercase">Account Balance</span>
+                          <span className="font-mono text-base font-extrabold text-white">
+                            {wallet.symbol === 'RWF'
+                              ? Math.round(wallet.balance).toLocaleString()
+                              : wallet.balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 5 })}{' '}
+                            <span className="text-xs font-normal text-amber-400">{wallet.symbol}</span>
+                          </span>
+                        </div>
+
+                        <div className="text-right">
+                          <span className="text-[10px] text-slate-500 font-semibold block uppercase">USD Value</span>
+                          <span className="font-mono text-sm font-bold text-emerald-400">
+                            ${valueUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-1.5 pt-1">
+                        <button
+                          onClick={() => onOpenSend(wallet.symbol)}
+                          className="flex-1 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-200 text-xs font-bold rounded-lg border border-slate-800 flex items-center justify-center gap-1 cursor-pointer"
+                        >
+                          <ArrowDownLeft className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>Send</span>
+                        </button>
+                        <button
+                          onClick={() => onOpenReceive(wallet.symbol)}
+                          className="flex-1 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-200 text-xs font-bold rounded-lg border border-slate-800 flex items-center justify-center gap-1 cursor-pointer"
+                        >
+                          <QrCode className="w-3.5 h-3.5 text-amber-400" />
+                          <span>Receive</span>
+                        </button>
+                        <button
+                          onClick={() => onOpenSwap && onOpenSwap(wallet.symbol)}
+                          className="py-1.5 px-3 bg-slate-900 hover:bg-slate-800 text-slate-200 text-xs font-bold rounded-lg border border-slate-800 flex items-center justify-center gap-1 cursor-pointer"
+                          title="Swap asset"
+                        >
+                          <ArrowLeftRight className="w-3.5 h-3.5 text-sky-400" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Non-Custodial External Wallets Section */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="font-bold text-white text-sm flex items-center gap-2">
+                    <Layers className="w-4 h-4 text-indigo-400" />
+                    Connected Non-Custodial Web3 Wallets
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Secure client-side signing (private keys and seed phrases are never stored or transmitted)
+                  </p>
+                </div>
+                <button
+                  onClick={onOpenConnectWallet}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg border border-slate-700 transition-colors cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Connect Wallet</span>
+                </button>
+              </div>
+
+              {externalWallets.length === 0 ? (
+                <EmptyState
+                  title="No External Wallets Connected"
+                  description="Connect a non-custodial Web3 wallet, hardware device, or banking API to manage external liquidity directly from this dashboard."
+                  actionLabel="Connect Wallet Now"
+                  onAction={onOpenConnectWallet}
+                  className="my-2 p-6"
+                />
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {externalWallets.map((ext) => (
+                    <div
+                      key={ext.id}
+                      className="bg-slate-950/60 border border-slate-800 p-3.5 rounded-xl flex items-center justify-between"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-indigo-500/10 text-indigo-400 flex items-center justify-center font-bold text-xs">
+                          {ext.type === 'METAMASK' ? '🦊' : '🌐'}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-slate-200 text-xs">{ext.type}</span>
+                            <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.2 rounded font-mono">
+                              {ext.network}
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-400 font-mono mt-0.5">
+                            {ext.address.substring(0, 10)}...{ext.address.substring(ext.address.length - 8)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-emerald-400 text-xs font-medium">
+                        <CheckCircle className="w-4 h-4" />
+                        <span>Verified</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Recent Ledger Transactions */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="font-bold text-white text-sm">Recent Ledger Financial Movements</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Idempotent, double-entry logged and cryptographically signed transactions
+                  </p>
+                </div>
+                <button
+                  onClick={() => onSelectTab('ledger')}
+                  className="flex items-center gap-1 text-xs text-amber-400 hover:text-amber-300 font-medium cursor-pointer"
+                >
+                  <span>Full Ledger Matrix</span>
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-800 text-slate-400 font-semibold uppercase tracking-wider">
+                      <th className="pb-3">Transaction</th>
+                      <th className="pb-3">Type</th>
+                      <th className="pb-3">Amount</th>
+                      <th className="pb-3">Route / Provider</th>
+                      <th className="pb-3">Idempotency & Risk</th>
+                      <th className="pb-3 text-right">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60">
+                    {transactions.map((tx) => (
+                      <tr key={tx.tx_id} className="hover:bg-slate-850/50 transition-colors">
+                        <td className="py-3 font-mono">
+                          <div className="font-bold text-slate-200">{tx.tx_id}</div>
+                          <div className="text-[11px] text-slate-400">
+                            {new Date(tx.created_at).toLocaleTimeString()}
+                          </div>
+                        </td>
+                        <td className="py-3">
+                          <span className="bg-slate-800 text-slate-300 px-2 py-0.5 rounded text-[10px] font-bold">
+                            {tx.tx_type}
+                          </span>
+                        </td>
+                        <td className="py-3">
+                          <div className="font-bold text-white">
+                            {tx.asset_symbol === 'RWF'
+                              ? tx.amount.toLocaleString()
+                              : tx.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}{' '}
+                            {tx.asset_symbol}
+                          </div>
+                          {tx.target_amount && (
+                            <div className="text-[11px] text-emerald-400">
+                              ➔ {tx.target_amount} {tx.target_asset_symbol}
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-3 text-slate-400">
+                          <div className="truncate max-w-[200px]" title={tx.source_wallet}>
+                            {tx.source_wallet}
+                          </div>
+                          <div className="text-[10px] text-slate-400 truncate max-w-[200px]">
+                            ➔ {tx.destination}
+                          </div>
+                        </td>
+                        <td className="py-3">
+                          <div className="font-mono text-[10px] text-slate-400 truncate max-w-[120px]" title={tx.idempotency_key}>
+                            {tx.idempotency_key}
+                          </div>
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <span className="text-[10px] text-emerald-400 font-semibold">
+                              Risk Score: {tx.risk_score || 2}/100
+                            </span>
+                          </div>
+                        </td>
+                        <td className="py-3 text-right">
+                          <span
+                            className={`px-2.5 py-1 rounded-full text-[11px] font-bold inline-flex items-center gap-1 ${
+                              tx.status === 'COMPLETED'
+                                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                : tx.status === 'PENDING'
+                                ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                : 'bg-red-500/10 text-red-400 border border-red-500/20'
+                            }`}
+                          >
+                            {tx.status === 'COMPLETED' ? (
+                              <CheckCircle className="w-3 h-3" />
+                            ) : (
+                              <Clock className="w-3 h-3" />
+                            )}
+                            {tx.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          {/* Watchlist Sidebar Right Column */}
+          <div className="lg:col-span-5 xl:col-span-4 sticky top-6">
+            <WatchlistSidebar
+              assets={assets}
+              wallets={wallets}
+              onOpenSend={onOpenSend}
+              onOpenReceive={onOpenReceive}
+              onOpenSwap={onOpenSwap}
+              onOpenCreatePriceAlert={onOpenCreatePriceAlert}
+            />
+          </div>
         </div>
-      </div>
-      </>
       )}
     </div>
   );

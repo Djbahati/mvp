@@ -1,6 +1,42 @@
 @import "tailwindcss";
 
 /* ==========================================================================
+   Smooth Global Theme Cross-Fade Transition
+   Applies a seamless 300ms cross-fade effect across all background, color,
+   border, and shadow properties when toggling light/dark mode.
+   ========================================================================== */
+
+html,
+body,
+#root,
+div,
+header,
+main,
+footer,
+nav,
+section,
+aside,
+article,
+button,
+input,
+select,
+textarea,
+span,
+p,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+a {
+  transition: background-color 300ms cubic-bezier(0.4, 0, 0.2, 1),
+              color 300ms cubic-bezier(0.4, 0, 0.2, 1),
+              border-color 300ms cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ==========================================================================
    High-Contrast Light Mode Accessibility Theme
    WCAG AAA Compliant contrast ratios with crisp borders & deep typography
    ========================================================================== */
@@ -242,3 +278,24 @@ body.light,
 .animate-shake {
   animation: shakeAnimation 400ms ease-in-out;
 }
+
+/* NFC Near-Field Radar Pulse Animation */
+@keyframes nfcPulseWave {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.9;
+  }
+  50% {
+    transform: scale(1.25);
+    opacity: 0.4;
+  }
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+
+.animate-nfc-pulse {
+  animation: nfcPulseWave 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+

@@ -11,6 +11,7 @@ import {
   KycProfile,
   SystemServiceStatus,
   QuickRecipient,
+  SubscriptionRule,
   PriceAlert,
   SecurityLog
 } from '../types';
@@ -1029,6 +1030,77 @@ export const INITIAL_QUICK_RECIPIENTS: QuickRecipient[] = [
     network: 'BITCOIN_NATIVE_SEGWIT',
     isFavorite: false,
     lastSentAt: '2026-09-01T16:00:00Z'
+  }
+];
+
+export const INITIAL_SUBSCRIPTION_RULES: SubscriptionRule[] = [
+  {
+    id: 'sub_001',
+    title: 'MTN Fibre Internet & Office Broadband',
+    provider: 'MTN Rwanda (*951#)',
+    amount: 45000,
+    assetSymbol: 'RWF',
+    frequency: 'MONTHLY',
+    category: 'UTILITY',
+    startDate: '2026-08-01T00:00:00Z',
+    nextPaymentDate: new Date(Date.now() + 86400000 * 4).toISOString().split('T')[0],
+    executionTime: '09:00',
+    calendarId: 'primary',
+    isEnabled: true,
+    autoPayEnabled: true,
+    notes: 'Monthly high-speed 100Mbps dedicated office connectivity',
+    createdAt: new Date(Date.now() - 86400000 * 30).toISOString()
+  },
+  {
+    id: 'sub_002',
+    title: 'AWS Cloud Hosting & Kubernetes Nodes',
+    provider: 'Amazon Web Services',
+    amount: 180,
+    assetSymbol: 'USDT',
+    frequency: 'MONTHLY',
+    category: 'SOFTWARE',
+    startDate: '2026-08-15T00:00:00Z',
+    nextPaymentDate: new Date(Date.now() + 86400000 * 12).toISOString().split('T')[0],
+    executionTime: '10:30',
+    calendarId: 'primary',
+    isEnabled: true,
+    autoPayEnabled: false,
+    notes: 'Primary cloud cluster infrastructure for Kofi payment engine',
+    createdAt: new Date(Date.now() - 86400000 * 60).toISOString()
+  },
+  {
+    id: 'sub_003',
+    title: 'Kigali Innovation City Hub Office Rent',
+    provider: 'KIC Real Estate Trust',
+    amount: 350000,
+    assetSymbol: 'RWF',
+    frequency: 'MONTHLY',
+    category: 'B2B_INVOICE',
+    startDate: '2026-09-01T00:00:00Z',
+    nextPaymentDate: new Date(Date.now() + 86400000 * 18).toISOString().split('T')[0],
+    executionTime: '08:00',
+    calendarId: 'primary',
+    isEnabled: true,
+    autoPayEnabled: true,
+    notes: 'Monthly tech incubator facility lease settlement',
+    createdAt: new Date(Date.now() - 86400000 * 90).toISOString()
+  },
+  {
+    id: 'sub_004',
+    title: 'Treasury Cold Vault Liquidity Rebalance',
+    provider: 'Kofi Multi-Sig Vault',
+    amount: 1500,
+    assetSymbol: 'USDC',
+    frequency: 'WEEKLY',
+    category: 'TREASURY',
+    startDate: '2026-09-05T00:00:00Z',
+    nextPaymentDate: new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0],
+    executionTime: '14:00',
+    calendarId: 'primary',
+    isEnabled: true,
+    autoPayEnabled: false,
+    notes: 'Weekly automated liquidity rebalancing to cold custody',
+    createdAt: new Date(Date.now() - 86400000 * 14).toISOString()
   }
 ];
 

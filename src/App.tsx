@@ -19,6 +19,10 @@ import { BiometricAuthModal } from './components/BiometricAuthModal';
 import { QrScannerModal } from './components/QrScannerModal';
 import { PriceAlertsModal } from './components/PriceAlertsModal';
 import { SecurityLogsView } from './components/SecurityLogsView';
+import { GoogleCalendarView } from './components/GoogleCalendarView';
+import { CurrencyConverter } from './components/CurrencyConverter';
+import { saveTransactionsToIDB, getTransactionsFromIDB } from './services/indexedDbService';
+import { checkAndTriggerSubscriptionNotifications } from './services/subscriptionNotificationService';
 import {
   INITIAL_SERVICES,
   INITIAL_ASSETS,
@@ -33,6 +37,7 @@ import {
   INITIAL_MOMO_LOGS,
   INITIAL_QUICK_RECIPIENTS,
   INITIAL_PRICE_ALERTS,
+  INITIAL_SUBSCRIPTION_RULES,
   INITIAL_SECURITY_LOGS
 } from './data/initialData';
 import {
@@ -52,6 +57,7 @@ import {
   MultiSigSigner,
   MultiSigSignature,
   QuickRecipient,
+  SubscriptionRule,
   PriceAlert,
   SecurityLog
 } from './types';
@@ -205,6 +211,27 @@ function DashboardApp() {
   const [wallets, setWallets] = useState<WalletAccount[]>(INITIAL_WALLETS);
   const [externalWallets, setExternalWallets] = useState<ExternalWallet[]>(INITIAL_EXTERNAL_WALLETS);
   const [transactions, setTransactions] = useState<Transaction[]>(INITIAL_TRANSACTIONS);
+
+  // Sync transaction history with local IndexedDB storage for offline availability
+  useEffect(() => {
+    // Initial load from IndexedDB if populated
+    getTransactionsFromIDB().then((cached) => {
+      if (cached && cached.length > 0) {
+        setTransactions((prev) => {
+          const map = new Map<string, Transaction>();
+          prev.forEach((t) => map.set(t.tx_id, t));
+          cached.forEach((t) => map.set(t.tx_id, t));
+          return Array.from(map.values());
+        });
+      }
+    }).catch((err) => console.warn('IndexedDB initial fetch notice:', err));
+  }, []);
+
+  useEffect(() => {
+    if (transactions && transactions.length > 0) {
+      saveTransactionsToIDB(transactions);
+    }
+  }, [transactions]);
   const [ledgerEntries, setLedgerEntries] = useState<LedgerEntry[]>(INITIAL_LEDGER_ENTRIES);
   const [merchant, setMerchant] = useState<B2BMerchant>(INITIAL_B2B_MERCHANT);
   const [miningWorkers] = useState(INITIAL_MINING_WORKERS);
@@ -298,6 +325,55 @@ function DashboardApp() {
     );
     setPriceAlerts(updated);
     localStorage.setItem('kofi_price_alerts', JSON.stringify(updated));
+  };
+
+  // Subscriptions State with localStorage persistence
+  const [subscriptions, setSubscriptions] = useState<SubscriptionRule[]>(() => {
+    const saved = localStorage.getItem('kofi_subscriptions');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return INITIAL_SUBSCRIPTION_RULES;
+  });
+
+  // Monitor subscription rules and trigger browser notifications 24 hours before due date
+  useEffect(() => {
+    checkAndTriggerSubscriptionNotifications(subscriptions);
+    const interval = setInterval(() => {
+      checkAndTriggerSubscriptionNotifications(subscriptions);
+    }, 60000); // Check every minute
+    return () => clearInterval(interval);
+  }, [subscriptions]);
+
+  const handleAddSubscription = (newRule: Omit<SubscriptionRule, 'id' | 'createdAt'>) => {
+    const ruleItem: SubscriptionRule = {
+      ...newRule,
+      id: `sub_${Date.now()}`,
+      createdAt: new Date().toISOString()
+    };
+    const updated = [ruleItem, ...subscriptions];
+    setSubscriptions(updated);
+    localStorage.setItem('kofi_subscriptions', JSON.stringify(updated));
+  };
+
+  const handleUpdateSubscription = (updatedRule: SubscriptionRule) => {
+    const updated = subscriptions.map((s) => (s.id === updatedRule.id ? updatedRule : s));
+    setSubscriptions(updated);
+    localStorage.setItem('kofi_subscriptions', JSON.stringify(updated));
+  };
+
+  const handleToggleSubscription = (id: string) => {
+    const updated = subscriptions.map((s) => (s.id === id ? { ...s, isEnabled: !s.isEnabled } : s));
+    setSubscriptions(updated);
+    localStorage.setItem('kofi_subscriptions', JSON.stringify(updated));
+  };
+
+  const handleDeleteSubscription = (id: string) => {
+    const updated = subscriptions.filter((s) => s.id !== id);
+    setSubscriptions(updated);
+    localStorage.setItem('kofi_subscriptions', JSON.stringify(updated));
   };
 
   const handleOpenCreatePriceAlert = (symbol?: string) => {
@@ -1330,6 +1406,11 @@ function DashboardApp() {
                 ledgerEntries={ledgerEntries}
                 quickRecipients={quickRecipients}
                 priceAlerts={priceAlerts}
+                subscriptions={subscriptions}
+                onAddSubscription={handleAddSubscription}
+                onUpdateSubscription={handleUpdateSubscription}
+                onDeleteSubscription={handleDeleteSubscription}
+                onToggleSubscription={handleToggleSubscription}
                 onOpenSend={(sym) => {
                   setSelectedAssetSymbol(sym || 'USDT');
                   setQuickSendInitialRecipient('');
@@ -1395,6 +1476,16 @@ function DashboardApp() {
               />
             )}
 
+            {activeTab === 'converter' && (
+              <CurrencyConverter
+                assets={assets}
+                onSelectTab={(tab) => setActiveTab(tab)}
+                onOpenSwap={(src, tgt, amt) => {
+                  setActiveTab('exchange');
+                }}
+              />
+            )}
+
             {activeTab === 'b2b' && (
               <B2BPortal
                 merchant={merchant}
@@ -1408,6 +1499,14 @@ function DashboardApp() {
                 onCreateMultiSigProposal={handleCreateMultiSigProposal}
                 onSaveMultiSigPolicy={handleSaveMultiSigPolicy}
                 onAddMultiSigSigner={handleAddMultiSigSigner}
+              />
+            )}
+
+            {activeTab === 'calendar' && (
+              <GoogleCalendarView
+                transactions={transactions}
+                subscriptions={subscriptions}
+                onNotify={(msg) => console.log('Calendar Notification:', msg)}
               />
             )}
 
@@ -1460,7 +1559,7 @@ function DashboardApp() {
               />
             )}
 
-            {!['wallets', 'momo', 'ledger', 'monitoring', 'exchange', 'b2b', 'mining', 'compliance', 'security'].includes(activeTab) && (
+            {!['wallets', 'momo', 'ledger', 'monitoring', 'exchange', 'converter', 'b2b', 'calendar', 'mining', 'compliance', 'security'].includes(activeTab) && (
               <EmptyState
                 title="No Active Tab Contents to Display"
                 description="The selected tab view currently contains no active data or is temporarily empty. Return to your multi-currency wallet overview or select a module from the top navigation bar."

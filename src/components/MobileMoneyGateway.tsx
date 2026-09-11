@@ -16,7 +16,12 @@ import {
   ArrowUpRight,
   Sparkles,
   Layers,
-  Building2
+  Building2,
+  Wifi,
+  CreditCard,
+  Copy,
+  Check,
+  Cpu
 } from 'lucide-react';
 import { MobileMoneyTransaction, UserProfile } from '../types';
 import { initiateMoMoCollection, generateWebhookSignature } from '../services/momoService';
@@ -47,7 +52,7 @@ export const MobileMoneyGateway: React.FC<MobileMoneyGatewayProps> = ({
   momoLogs,
   currentRwfBalance
 }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'DEPOSIT' | 'WITHDRAW' | 'USSD_INFO'>('DEPOSIT');
+  const [activeSubTab, setActiveSubTab] = useState<'DEPOSIT' | 'WITHDRAW' | 'NFC_TAP_PAY' | 'USSD_INFO'>('DEPOSIT');
   const [provider, setProvider] = useState<'MTN_RWANDA' | 'AIRTEL_AFRICA'>(userProfile.momo_operator || 'MTN_RWANDA');
   const [phoneNumber, setPhoneNumber] = useState(userProfile.phone_number || '0780455033');
   const [amount, setAmount] = useState('50000');
@@ -56,6 +61,128 @@ export const MobileMoneyGateway: React.FC<MobileMoneyGatewayProps> = ({
   const [autoSwap, setAutoSwap] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+
+  // NFC Tap to Pay Simulation States
+  const [nfcMode, setNfcMode] = useState<'PAY_MERCHANT' | 'RECEIVE_TERMINAL'>('PAY_MERCHANT');
+  const [nfcSelectedDevice, setNfcSelectedDevice] = useState<string>('POS_KIGALI_MARKET_882');
+  const [nfcAmount, setNfcAmount] = useState<string>('12500');
+  const [nfcAsset, setNfcAsset] = useState<'RWF' | 'USDT' | 'USDC'>('RWF');
+  const [nfcMemo, setNfcMemo] = useState<string>('Kigali City Market Purchase');
+  const [nfcStatus, setNfcStatus] = useState<'IDLE' | 'SCANNING' | 'HANDSHAKE' | 'SETTLED'>('IDLE');
+  const [nfcProgress, setNfcProgress] = useState<number>(0);
+  const [nfcCopiedToken, setNfcCopiedToken] = useState<boolean>(false);
+  const [nfcReceipt, setNfcReceipt] = useState<{
+    txId: string;
+    timestamp: string;
+    targetName: string;
+    amount: number;
+    asset: string;
+    tokenHash: string;
+    hmacSig: string;
+    status: string;
+  } | null>(null);
+
+  const nfcTargets = [
+    {
+      id: 'POS_KIGALI_MARKET_882',
+      name: 'Kigali City Market Merchant POS #882',
+      type: 'MERCHANT',
+      distance: '0.1m (Proximity Field Active)',
+      signal: 'Strong (13.56 MHz)',
+      operator: 'MTN MoMo Contactless'
+    },
+    {
+      id: 'COFFEE_HUB_CHECKOUT_019',
+      name: 'Kigali Innovation Hub Cafe Terminal',
+      type: 'MERCHANT',
+      distance: '0.3m',
+      signal: 'Optimal',
+      operator: 'Airtel Pay NFC'
+    },
+    {
+      id: 'PEER_HANDSET_250788',
+      name: 'Peer Mobile Phone (+250 788 123 456)',
+      type: 'P2P',
+      distance: '0.2m',
+      signal: 'Very Strong',
+      operator: 'Kofi Direct P2P NFC'
+    }
+  ];
+
+  const handleSimulateNfcTap = async () => {
+    const numAmt = parseFloat(nfcAmount);
+    if (isNaN(numAmt) || numAmt <= 0) {
+      alert('Please enter a valid NFC payment amount');
+      return;
+    }
+
+    if (nfcMode === 'PAY_MERCHANT' && nfcAsset === 'RWF' && currentRwfBalance < numAmt) {
+      alert(`Insufficient RWF balance for NFC payment. Available: ${currentRwfBalance.toLocaleString()} RWF`);
+      return;
+    }
+
+    setNfcStatus('SCANNING');
+    setNfcProgress(20);
+    setNfcReceipt(null);
+
+    if (typeof window !== 'undefined' && window.navigator && 'vibrate' in window.navigator) {
+      try {
+        window.navigator.vibrate([60, 40, 60]);
+      } catch (e) {}
+    }
+
+    // Phase 1: Near-Field RF Protocol Handshake
+    setTimeout(() => {
+      setNfcStatus('HANDSHAKE');
+      setNfcProgress(65);
+      if (typeof window !== 'undefined' && window.navigator && 'vibrate' in window.navigator) {
+        try {
+          window.navigator.vibrate(100);
+        } catch (e) {}
+      }
+    }, 1100);
+
+    // Phase 2: Secure Element Token & Double-Entry Settlement
+    setTimeout(async () => {
+      setNfcProgress(100);
+      setNfcStatus('SETTLED');
+
+      const targetObj = nfcTargets.find((t) => t.id === nfcSelectedDevice) || {
+        name: 'Contactless NFC Terminal',
+        operator: 'Kofi NFC Gateway'
+      };
+
+      const generatedTxId = `NFC-TAP-${Date.now().toString().slice(-8)}`;
+      const tokenHash = `iso14443_0x${Math.random().toString(16).substring(2, 10)}${Math.random().toString(16).substring(2, 10)}`;
+      const hmacSig = await generateWebhookSignature(
+        JSON.stringify({ txId: generatedTxId, amount: numAmt, target: targetObj.name }),
+        'kofi_nfc_sec_key_2026'
+      );
+
+      setNfcReceipt({
+        txId: generatedTxId,
+        timestamp: new Date().toISOString(),
+        targetName: targetObj.name,
+        amount: numAmt,
+        asset: nfcAsset,
+        tokenHash,
+        hmacSig,
+        status: 'CONFIRMED_LEDGER_SETTLED'
+      });
+
+      // Update balances depending on direction
+      if (nfcMode === 'PAY_MERCHANT' && nfcAsset === 'RWF') {
+        await onExecuteMoMoWithdraw('MTN_RWANDA', userProfile.phone_number, numAmt);
+      } else if (nfcMode === 'RECEIVE_TERMINAL' && nfcAsset === 'RWF') {
+        await onExecuteMoMoDeposit('MTN_RWANDA', userProfile.phone_number, numAmt, false);
+      }
+
+      setStatusMessage(
+        `NFC Contactless Payment Successful! Settled ${numAmt.toLocaleString()} ${nfcAsset} with ${targetObj.name}.`
+      );
+      setTimeout(() => setStatusMessage(null), 6000);
+    }, 2400);
+  };
 
   const [ussdPrompt, setUssdPrompt] = useState<{
     visible: boolean;
@@ -245,8 +372,8 @@ export const MobileMoneyGateway: React.FC<MobileMoneyGatewayProps> = ({
         </div>
       )}
 
-      {/* Sub Tabs: Deposit vs Withdraw vs USSD Shortcuts */}
-      <div className="flex gap-2 border-b border-slate-800 pb-2">
+      {/* Sub Tabs: Deposit vs Withdraw vs NFC Tap Pay vs USSD Shortcuts */}
+      <div className="flex gap-2 border-b border-slate-800 pb-2 flex-wrap">
         <button
           onClick={() => setActiveSubTab('DEPOSIT')}
           className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
@@ -269,6 +396,21 @@ export const MobileMoneyGateway: React.FC<MobileMoneyGatewayProps> = ({
         >
           <ArrowUpRight className="w-4 h-4" />
           <span>Outbound Payout (Kofi -&gt; MoMo Phone)</span>
+        </button>
+
+        <button
+          onClick={() => setActiveSubTab('NFC_TAP_PAY')}
+          className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+            activeSubTab === 'NFC_TAP_PAY'
+              ? 'bg-amber-500 text-slate-950 shadow-md'
+              : 'text-slate-400 hover:text-white bg-slate-900'
+          }`}
+        >
+          <Wifi className="w-4 h-4 text-amber-950" />
+          <span>NFC Tap to Pay (Contactless)</span>
+          <span className="bg-amber-400/30 text-amber-950 text-[10px] px-1.5 py-0.2 rounded-full font-extrabold uppercase">
+            Near-Field
+          </span>
         </button>
 
         <button
@@ -505,6 +647,216 @@ export const MobileMoneyGateway: React.FC<MobileMoneyGatewayProps> = ({
                 </button>
               </form>
             </>
+          )}
+
+          {activeSubTab === 'NFC_TAP_PAY' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                <div>
+                  <h3 className="font-bold text-white text-base flex items-center gap-2">
+                    <Wifi className="w-5 h-5 text-amber-400 rotate-90" />
+                    <span>NFC Contactless 'Tap to Pay'</span>
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    13.56 MHz ISO/IEC 14443 Type A near-field payment handshake simulation.
+                  </p>
+                </div>
+                <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-mono font-bold rounded-md">
+                  ISO 14443-4 SEC
+                </span>
+              </div>
+
+              {/* Mode Selector */}
+              <div className="grid grid-cols-2 gap-2 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setNfcMode('PAY_MERCHANT')}
+                  className={`py-2 px-3 rounded-lg font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                    nfcMode === 'PAY_MERCHANT'
+                      ? 'bg-amber-500 text-slate-950 shadow-md'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <CreditCard className="w-3.5 h-3.5" />
+                  <span>Tap to Pay (Outbound)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNfcMode('RECEIVE_TERMINAL')}
+                  className={`py-2 px-3 rounded-lg font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                    nfcMode === 'RECEIVE_TERMINAL'
+                      ? 'bg-amber-500 text-slate-950 shadow-md'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <Smartphone className="w-3.5 h-3.5" />
+                  <span>Terminal Mode (Inbound)</span>
+                </button>
+              </div>
+
+              {/* Select Nearby Contactless Target Device */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5 flex items-center justify-between">
+                  <span>Select Nearby Discovered NFC Device</span>
+                  <span className="text-[10px] text-emerald-400 font-mono flex items-center gap-1">
+                    <Radio className="w-3 h-3 animate-pulse" /> 3 Devices Discovered
+                  </span>
+                </label>
+
+                <div className="space-y-2">
+                  {nfcTargets.map((target) => {
+                    const isSelected = nfcSelectedDevice === target.id;
+                    return (
+                      <button
+                        key={target.id}
+                        type="button"
+                        onClick={() => setNfcSelectedDevice(target.id)}
+                        className={`w-full p-2.5 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                          isSelected
+                            ? 'bg-amber-500/10 border-amber-500 text-amber-300 shadow-md'
+                            : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div
+                            className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold ${
+                              isSelected ? 'bg-amber-500 text-slate-950' : 'bg-slate-900 text-slate-400'
+                            }`}
+                          >
+                            <Wifi className="w-4 h-4 rotate-90" />
+                          </div>
+                          <div>
+                            <div className="text-xs font-bold text-white">{target.name}</div>
+                            <div className="text-[10px] text-slate-400 font-mono">
+                              {target.operator} • Distance: {target.distance}
+                            </div>
+                          </div>
+                        </div>
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-emerald-400">
+                          {target.signal}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Amount and Asset Config */}
+              <div className="grid grid-cols-3 gap-2">
+                <div className="col-span-2">
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Payment Amount</label>
+                  <input
+                    type="number"
+                    min="100"
+                    value={nfcAmount}
+                    onChange={(e) => setNfcAmount(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-white font-mono text-xs focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Asset</label>
+                  <select
+                    value={nfcAsset}
+                    onChange={(e) => setNfcAsset(e.target.value as any)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-2 text-white font-mono text-xs focus:outline-none"
+                  >
+                    <option value="RWF" className="bg-slate-900">RWF</option>
+                    <option value="USDT" className="bg-slate-900">USDT</option>
+                    <option value="USDC" className="bg-slate-900">USDC</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Interactive NFC Touch / Tap Zone Trigger */}
+              <div className="bg-slate-950 border-2 border-dashed border-amber-500/30 rounded-2xl p-5 text-center space-y-3 relative overflow-hidden">
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-20">
+                  <div className="w-32 h-32 rounded-full border border-amber-500 animate-nfc-pulse" />
+                  <div className="w-48 h-48 rounded-full border border-amber-500 animate-nfc-pulse delay-300" />
+                </div>
+
+                <div className="relative z-10 flex flex-col items-center">
+                  <button
+                    type="button"
+                    onClick={handleSimulateNfcTap}
+                    disabled={nfcStatus === 'SCANNING' || nfcStatus === 'HANDSHAKE'}
+                    className={`w-20 h-20 rounded-full flex items-center justify-center text-slate-950 font-black shadow-xl transition-transform active:scale-95 cursor-pointer relative ${
+                      nfcStatus === 'SETTLED'
+                        ? 'bg-emerald-400 text-slate-950'
+                        : 'bg-gradient-to-br from-amber-400 to-amber-600 hover:from-amber-300 hover:to-amber-500'
+                    }`}
+                  >
+                    {nfcStatus === 'SETTLED' ? (
+                      <CheckCircle2 className="w-10 h-10" />
+                    ) : (
+                      <Wifi className="w-10 h-10 rotate-90 animate-pulse" />
+                    )}
+                  </button>
+
+                  <div className="mt-3">
+                    <h4 className="text-sm font-extrabold text-white">
+                      {nfcStatus === 'IDLE' && 'TAP HERE TO SIMULATE NEAR-FIELD PAY'}
+                      {nfcStatus === 'SCANNING' && 'Scanning 13.56 MHz RF Field...'}
+                      {nfcStatus === 'HANDSHAKE' && 'Authenticating ISO 14443 Secure Token...'}
+                      {nfcStatus === 'SETTLED' && 'Contactless Tap Payment Complete!'}
+                    </h4>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      {nfcStatus === 'IDLE' && 'Hold device within 4cm of target terminal to execute instant settlement.'}
+                      {nfcStatus !== 'IDLE' && `${nfcProgress}% — ISO/IEC 14443 Secure Protocol in Progress`}
+                    </p>
+                  </div>
+
+                  {/* Progress bar */}
+                  {nfcStatus !== 'IDLE' && (
+                    <div className="w-full bg-slate-900 h-1.5 rounded-full overflow-hidden mt-3 border border-slate-800">
+                      <div
+                        className="bg-amber-400 h-full transition-all duration-300"
+                        style={{ width: `${nfcProgress}%` }}
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* NFC Contactless Receipt Modal / Box */}
+              {nfcReceipt && (
+                <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-3.5 space-y-2 text-xs font-mono animate-in fade-in">
+                  <div className="flex items-center justify-between text-emerald-400 font-bold border-b border-emerald-500/20 pb-1.5">
+                    <span className="flex items-center gap-1.5">
+                      <CheckCircle2 className="w-4 h-4" /> NFC Contactless Receipt
+                    </span>
+                    <span className="text-[10px] text-slate-400">{nfcReceipt.txId}</span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-[11px]">
+                    <div>
+                      <span className="text-slate-400 block">Settled Amount:</span>
+                      <span className="text-white font-bold">
+                        {nfcReceipt.amount.toLocaleString()} {nfcReceipt.asset}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block">NFC Target:</span>
+                      <span className="text-slate-200 truncate block">{nfcReceipt.targetName}</span>
+                    </div>
+                  </div>
+
+                  <div className="pt-1 text-[10px] text-slate-400 border-t border-slate-800/80 flex items-center justify-between">
+                    <span className="truncate max-w-[200px]">Token: {nfcReceipt.tokenHash}</span>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(nfcReceipt.tokenHash);
+                        setNfcCopiedToken(true);
+                        setTimeout(() => setNfcCopiedToken(false), 2000);
+                      }}
+                      className="text-amber-400 hover:text-amber-300 flex items-center gap-1 cursor-pointer font-bold"
+                    >
+                      {nfcCopiedToken ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                      <span>{nfcCopiedToken ? 'Copied' : 'Copy Token'}</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           )}
 
           {activeSubTab === 'USSD_INFO' && (
